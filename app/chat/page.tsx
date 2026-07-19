@@ -326,7 +326,7 @@ export default function ChatPage() {
                     muted
                     label="You"
                     fit="cover"
-                    className="aspect-9/16 h-30 w-auto sm:h-36 md:h-40"
+                    className="h-30 w-auto sm:h-36 md:h-40"
                     videoClassName="pointer-events-none -scale-x-100"
                     labelClassName="bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 text-[9px] backdrop-blur-sm sm:bottom-1.5 sm:left-1.5 sm:text-[10px]"
                   />
