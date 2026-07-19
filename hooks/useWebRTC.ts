@@ -16,28 +16,18 @@ function getSignalingUrl() {
   return "http://localhost:5000";
 }
 
-/** Pick camera shape from the device screen size. */
 function getVideoConstraintsForScreen(): MediaTrackConstraints {
   const width = window.innerWidth;
   const height = window.innerHeight;
-  const shortest = Math.min(width, height);
+  const isMobileScreen = Math.min(width, height) < 768;
   const isPortrait = height >= width;
-  const isMobileScreen = shortest < 768;
 
-  if (isMobileScreen) {
-    if (isPortrait) {
-      return {
-        facingMode: "user",
-        aspectRatio: { ideal: 9 / 16 },
-        width: { ideal: 720 },
-        height: { ideal: 1280 },
-      };
-    }
+  if (isMobileScreen && isPortrait) {
     return {
       facingMode: "user",
-      aspectRatio: { ideal: 16 / 9 },
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
+      aspectRatio: { ideal: 9 / 16 },
+      width: { ideal: 720 },
+      height: { ideal: 1280 },
     };
   }
 
@@ -49,7 +39,7 @@ function getVideoConstraintsForScreen(): MediaTrackConstraints {
   };
 }
 
-const ICE_CONFIG: RTCConfiguration = {
+const FALLBACK_ICE: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
@@ -75,6 +65,10 @@ function makeMessage(text: string, from: ChatMessage["from"]): ChatMessage {
   };
 }
 
+function sdpPayload(desc: RTCSessionDescription | RTCSessionDescriptionInit) {
+  return { type: desc.type, sdp: desc.sdp };
+}
+
 export function useWebRTC() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -97,23 +91,20 @@ export function useWebRTC() {
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const iceConfigRef = useRef<RTCConfiguration>(FALLBACK_ICE);
   const countedConnectionRef = useRef(false);
   const onConnectedRef = useRef<(() => void) | null>(null);
   const isInitiatorRef = useRef(false);
 
-  const clearChat = useCallback(() => {
-    setMessages([]);
-  }, []);
+  const clearChat = useCallback(() => setMessages([]), []);
 
   const bindRemoteMedia = useCallback((stream: MediaStream) => {
     remoteStreamRef.current = stream;
 
     const video = remoteVideoRef.current;
     if (video) {
-      if (video.srcObject !== stream) {
-        video.srcObject = stream;
-      }
-      // Must stay muted for mobile autoplay or the element stays blank
+      video.srcObject = stream;
       video.muted = true;
       video.autoplay = true;
       video.playsInline = true;
@@ -126,24 +117,23 @@ export function useWebRTC() {
         remoteAudioRef.current.autoplay = true;
       }
       const audio = remoteAudioRef.current;
-      if (audio.srcObject !== stream) {
-        audio.srcObject = stream;
-      }
+      audio.srcObject = stream;
       audio.muted = false;
       void audio.play().catch(() => {});
     }
   }, []);
 
-  const cleanupPeerConnection = useCallback(() => {
+  const cleanupPeerConnection = useCallback((opts?: { keepPendingOffer?: boolean }) => {
     pcRef.current?.close();
     pcRef.current = null;
     pendingCandidatesRef.current = [];
+    if (!opts?.keepPendingOffer) {
+      pendingOfferRef.current = null;
+    }
     remoteStreamRef.current = null;
     isInitiatorRef.current = false;
 
-    if (remoteVideoRef.current) {
-      remoteVideoRef.current.srcObject = null;
-    }
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (remoteAudioRef.current) {
       remoteAudioRef.current.pause();
       remoteAudioRef.current.srcObject = null;
@@ -153,19 +143,15 @@ export function useWebRTC() {
 
   const addLocalTracks = useCallback((pc: RTCPeerConnection) => {
     const stream = localStreamRef.current;
-    if (!stream) return;
-
-    const senderIds = new Set(
-      pc
-        .getSenders()
-        .map((s) => s.track?.id)
-        .filter(Boolean),
+    if (!stream) {
+      console.warn("[Skipcam] local stream missing");
+      return;
+    }
+    const have = new Set(
+      pc.getSenders().map((s) => s.track?.id).filter(Boolean),
     );
-
     for (const track of stream.getTracks()) {
-      if (!senderIds.has(track.id)) {
-        pc.addTrack(track, stream);
-      }
+      if (!have.has(track.id)) pc.addTrack(track, stream);
     }
   }, []);
 
@@ -175,42 +161,46 @@ export function useWebRTC() {
       try {
         await pc.addIceCandidate(candidate);
       } catch (err) {
-        console.error("Failed to add ICE candidate:", err);
+        console.error("ICE candidate error:", err);
       }
     }
   }, []);
 
-  const ensurePeerConnection = useCallback(
-    (socket: Socket) => {
-      const existing = pcRef.current;
-      if (existing && existing.signalingState !== "closed") {
-        return existing;
+  const loadIceConfig = useCallback(async () => {
+    try {
+      const res = await fetch(`${getSignalingUrl()}/ice`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { iceServers?: RTCIceServer[] };
+      if (data.iceServers?.length) {
+        iceConfigRef.current = { iceServers: data.iceServers };
       }
+    } catch {
+      // keep fallback STUN
+    }
+  }, []);
 
-      const pc = new RTCPeerConnection(ICE_CONFIG);
+  const createPeerConnection = useCallback(
+    (socket: Socket) => {
+      const pc = new RTCPeerConnection(iceConfigRef.current);
       pcRef.current = pc;
 
       pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          socket.emit("ice-candidate", event.candidate.toJSON());
-        }
+        if (!event.candidate) return;
+        socket.emit("ice-candidate", event.candidate.toJSON());
       };
 
       pc.ontrack = (event) => {
-        const stream =
-          event.streams[0] ??
-          remoteStreamRef.current ??
-          new MediaStream();
-
-        if (!event.streams[0]) {
-          const has = stream.getTracks().some((t) => t.id === event.track.id);
-          if (!has) stream.addTrack(event.track);
+        console.log("[Skipcam] remote track:", event.track.kind);
+        const stream = event.streams[0] ?? new MediaStream([event.track]);
+        if (!event.streams[0] && remoteStreamRef.current) {
+          remoteStreamRef.current.addTrack(event.track);
+          bindRemoteMedia(remoteStreamRef.current);
+        } else {
+          bindRemoteMedia(stream);
         }
 
-        bindRemoteMedia(stream);
         setStatus("connected");
         setConnectionError(null);
-
         if (!countedConnectionRef.current) {
           countedConnectionRef.current = true;
           setMatchFlash(true);
@@ -220,14 +210,37 @@ export function useWebRTC() {
       };
 
       pc.oniceconnectionstatechange = () => {
+        console.log("[Skipcam] ICE:", pc.iceConnectionState);
         if (pc.iceConnectionState === "failed") {
-          setConnectionError("Video link failed. Tap Next to retry.");
+          setConnectionError(
+            "Could not link cameras. Put both devices on the same Wi‑Fi, then tap Next.",
+          );
+          void pc.restartIce();
         }
       };
 
       return pc;
     },
     [bindRemoteMedia],
+  );
+
+  const handleOffer = useCallback(
+    async (offer: RTCSessionDescriptionInit, socket: Socket) => {
+      const pc = pcRef.current ?? createPeerConnection(socket);
+      addLocalTracks(pc);
+
+      if (pc.signalingState !== "stable") {
+        console.warn("[Skipcam] skip offer, state=", pc.signalingState);
+        return;
+      }
+
+      await pc.setRemoteDescription(offer);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit("answer", sdpPayload(pc.localDescription!));
+      await flushPendingCandidates(pc);
+    },
+    [addLocalTracks, createPeerConnection, flushPendingCandidates],
   );
 
   const bindSocketEvents = useCallback(
@@ -241,68 +254,77 @@ export function useWebRTC() {
       socket.off("chat-message");
       socket.off("reaction");
 
-      socket.on("waiting", () => {
-        setStatus("waiting");
-      });
+      socket.on("waiting", () => setStatus("waiting"));
 
       socket.on("matched", async ({ initiator }: { initiator: boolean }) => {
+        console.log("[Skipcam] matched, initiator=", initiator);
         clearChat();
         countedConnectionRef.current = false;
         setConnectionError(null);
         setStatus("connecting");
+
+        // Preserve offer if it arrived before "matched"
+        const earlyOffer = pendingOfferRef.current;
+        cleanupPeerConnection({ keepPendingOffer: true });
+        pendingOfferRef.current = earlyOffer;
         isInitiatorRef.current = initiator;
 
-        // Important: do NOT wipe a PC that already answered an early offer
-        const pc = ensurePeerConnection(socket);
+        await loadIceConfig();
+        const pc = createPeerConnection(socket);
         addLocalTracks(pc);
 
-        if (!initiator) return;
-        if (pc.signalingState !== "stable") return;
+        if (initiator) {
+          pendingOfferRef.current = null;
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit("offer", sdpPayload(pc.localDescription!));
+          } catch (err) {
+            console.error("Offer failed:", err);
+            setConnectionError("Could not start video. Tap Next.");
+          }
+          return;
+        }
 
-        try {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socket.emit("offer", pc.localDescription);
-        } catch (err) {
-          console.error("Failed to create offer:", err);
-          setConnectionError("Could not start video. Tap Next to retry.");
+        if (earlyOffer?.sdp) {
+          pendingOfferRef.current = null;
+          try {
+            await handleOffer(earlyOffer, socket);
+          } catch (err) {
+            console.error("Early offer failed:", err);
+            setConnectionError("Could not answer video. Tap Next.");
+          }
         }
       });
 
       socket.on("offer", async (offer: RTCSessionDescriptionInit) => {
-        const socketInstance = socketRef.current;
-        if (!socketInstance) return;
+        console.log("[Skipcam] got offer");
+        if (!offer?.sdp) return;
+
+        // Offer arrived before we finished matched setup — queue it
+        if (!pcRef.current || isInitiatorRef.current) {
+          pendingOfferRef.current = offer;
+          return;
+        }
 
         try {
-          const pc = ensurePeerConnection(socketInstance);
-          addLocalTracks(pc);
-
-          // Already answered / wrong state — ignore duplicate offers
-          if (pc.signalingState !== "stable" && pc.signalingState !== "have-remote-offer") {
-            return;
-          }
-
-          await pc.setRemoteDescription(offer);
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          socketInstance.emit("answer", pc.localDescription);
-          await flushPendingCandidates(pc);
+          await handleOffer(offer, socket);
         } catch (err) {
-          console.error("Failed to handle offer:", err);
-          setConnectionError("Could not answer video. Tap Next to retry.");
+          console.error("Offer handle failed:", err);
+          setConnectionError("Could not answer video. Tap Next.");
         }
       });
 
       socket.on("answer", async (answer: RTCSessionDescriptionInit) => {
+        console.log("[Skipcam] got answer");
         const pc = pcRef.current;
-        if (!pc) return;
-
+        if (!pc || !answer?.sdp) return;
         try {
           if (pc.signalingState !== "have-local-offer") return;
           await pc.setRemoteDescription(answer);
           await flushPendingCandidates(pc);
         } catch (err) {
-          console.error("Failed to handle answer:", err);
+          console.error("Answer failed:", err);
         }
       });
 
@@ -312,11 +334,10 @@ export function useWebRTC() {
           pendingCandidatesRef.current.push(candidate);
           return;
         }
-
         try {
           await pc.addIceCandidate(candidate);
         } catch (err) {
-          console.error("Failed to add ICE candidate:", err);
+          console.error("ICE add failed:", err);
         }
       });
 
@@ -347,13 +368,16 @@ export function useWebRTC() {
       addLocalTracks,
       cleanupPeerConnection,
       clearChat,
-      ensurePeerConnection,
+      createPeerConnection,
       flushPendingCandidates,
+      handleOffer,
+      loadIceConfig,
     ],
   );
 
   useEffect(() => {
     let cancelled = false;
+    void loadIceConfig();
 
     (async () => {
       try {
@@ -366,12 +390,12 @@ export function useWebRTC() {
         } catch {
           stream = await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: { facingMode: "user" },
+            video: true,
           });
         }
 
         if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
+          stream.getTracks().forEach((t) => t.stop());
           return;
         }
 
@@ -384,47 +408,51 @@ export function useWebRTC() {
           void localVideoRef.current.play().catch(() => {});
         }
       } catch (err) {
-        console.error("Failed to access camera/microphone:", err);
+        console.error("getUserMedia failed:", err);
         setCameraReady(false);
+        setConnectionError("Allow camera and microphone to continue.");
       }
     })();
 
     return () => {
       cancelled = true;
       cleanupPeerConnection();
-      localStreamRef.current?.getTracks().forEach((track) => track.stop());
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [cleanupPeerConnection]);
+  }, [cleanupPeerConnection, loadIceConfig]);
 
   useEffect(() => {
     const video = localVideoRef.current;
     const stream = localStreamRef.current;
     if (!video || !stream) return;
-    if (video.srcObject !== stream) {
-      video.srcObject = stream;
-    }
+    if (video.srcObject !== stream) video.srcObject = stream;
     void video.play().catch(() => {});
   });
 
-  // Re-bind remote media after UI shows the video element (placeholder off)
   useEffect(() => {
     if (status !== "connected" || !remoteStreamRef.current) return;
     bindRemoteMedia(remoteStreamRef.current);
   }, [status, bindRemoteMedia]);
 
   const startMatching = useCallback(() => {
+    if (!localStreamRef.current) {
+      setConnectionError("Camera is not ready yet.");
+      return;
+    }
+
     setConnectionError(null);
     setStatus("waiting");
+    cleanupPeerConnection();
 
     if (!socketRef.current) {
       const socket = io(getSignalingUrl(), {
         transports: ["polling", "websocket"],
         withCredentials: true,
         reconnection: true,
-        reconnectionAttempts: 8,
+        reconnectionAttempts: 10,
         timeout: 20000,
       });
       socketRef.current = socket;
@@ -436,14 +464,10 @@ export function useWebRTC() {
       });
 
       socket.on("connect_error", (err) => {
-        console.error("Signaling connect error:", err.message);
-        setConnectionError(
-          "Could not reach the matchmaking server. Retrying…",
-        );
+        console.error("socket error:", err.message);
+        setConnectionError("Cannot reach server. Retrying…");
       });
     } else if (socketRef.current.connected) {
-      // Fresh PC for a new search
-      cleanupPeerConnection();
       socketRef.current.emit("find-match");
     } else {
       socketRef.current.connect();
@@ -456,7 +480,6 @@ export function useWebRTC() {
   const nextPartner = useCallback(() => {
     const socket = socketRef.current;
     if (!socket) return;
-
     cleanupPeerConnection();
     clearChat();
     countedConnectionRef.current = false;
@@ -469,15 +492,12 @@ export function useWebRTC() {
     const socket = socketRef.current;
     const trimmed = text.trim();
     if (!socket || !trimmed) return;
-
     setMessages((current) => [...current, makeMessage(trimmed, "me")]);
     socket.emit("chat-message", trimmed);
   }, []);
 
   const sendReaction = useCallback((emoji: string) => {
-    const socket = socketRef.current;
-    if (!socket) return;
-    socket.emit("reaction", emoji);
+    socketRef.current?.emit("reaction", emoji);
   }, []);
 
   const toggleMic = useCallback(() => {
