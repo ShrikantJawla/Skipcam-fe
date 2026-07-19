@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode, RefObject } from "react";
+import type { CSSProperties, ReactNode, RefObject } from "react";
 
 interface VideoBoxProps {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -13,6 +13,7 @@ interface VideoBoxProps {
   className?: string;
   videoClassName?: string;
   labelClassName?: string;
+  style?: CSSProperties;
 }
 
 export default function VideoBox({
@@ -25,6 +26,7 @@ export default function VideoBox({
   className = "",
   videoClassName = "",
   labelClassName = "",
+  style,
 }: VideoBoxProps) {
   // Always center the stream. Cover fills the frame; contain letterboxes if needed.
   const fitClass =
@@ -35,6 +37,7 @@ export default function VideoBox({
   return (
     <div
       className={`relative flex items-center justify-center overflow-hidden bg-stage ${className}`}
+      style={style}
     >
       <video
         ref={videoRef}

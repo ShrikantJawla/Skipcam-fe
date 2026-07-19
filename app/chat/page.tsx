@@ -7,9 +7,10 @@ import DraggablePip from "@/components/DraggablePip";
 import MatchFlash from "@/components/MatchFlash";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import ReactionBurst, { ReactionBar } from "@/components/ReactionBurst";
-import ScreenAspectFrame from "@/components/ScreenAspectFrame";
+import StreamAspectFrame from "@/components/StreamAspectFrame";
 import VideoBox from "@/components/VideoBox";
 import WaitingScene from "@/components/WaitingScene";
+import { useStreamAspectRatio } from "@/hooks/useStreamAspectRatio";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { BRAND } from "@/lib/brand";
 import {
@@ -106,6 +107,9 @@ export default function ChatPage() {
     reportPartner,
     setOnConnected,
   } = useWebRTC();
+
+  // Match local PIP to the camera stream’s real frame (what the partner sees).
+  const localAspect = useStreamAspectRatio(localVideoRef);
 
   const [moments, setMoments] = useState<MomentsStats>({
     total: 0,
@@ -272,11 +276,11 @@ export default function ChatPage() {
               <div
                 className={`absolute inset-0 overflow-hidden rounded-xl bg-stage sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
               >
-                <ScreenAspectFrame>
+                <StreamAspectFrame videoRef={remoteVideoRef}>
                   <VideoBox
                     videoRef={remoteVideoRef}
                     label="Stranger"
-                    fit="cover"
+                    fit="contain"
                     muted
                     placeholder={status !== "connected"}
                     placeholderContent={
@@ -285,7 +289,7 @@ export default function ChatPage() {
                     className="h-full w-full rounded-none border-0 bg-stage"
                     labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
                   />
-                </ScreenAspectFrame>
+                </StreamAspectFrame>
               </div>
 
               {status !== "connected" && (
@@ -326,10 +330,11 @@ export default function ChatPage() {
                     videoRef={localVideoRef}
                     muted
                     label="You"
-                    fit="cover"
-                    className="aspect-video h-16 w-auto max-[767px]:portrait:aspect-9/16 max-[767px]:portrait:h-20 sm:h-24 md:h-28"
+                    fit="contain"
+                    className="h-20 w-auto sm:h-24 md:h-28"
                     videoClassName="pointer-events-none -scale-x-100"
                     labelClassName="bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 text-[9px] backdrop-blur-sm sm:bottom-1.5 sm:left-1.5 sm:text-[10px]"
+                    style={{ aspectRatio: String(localAspect) }}
                   />
                   {!cameraOn && (
                     <div className="absolute inset-0 flex items-center justify-center bg-ink/85 text-[9px] font-semibold tracking-wide text-white/70 sm:text-[10px]">

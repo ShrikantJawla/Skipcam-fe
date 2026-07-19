@@ -1,35 +1,28 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useStreamAspectRatio } from "@/hooks/useStreamAspectRatio";
 
-/** Same rule as camera constraints: mobile portrait → 9:16, otherwise 16:9. */
-function getScreenAspectRatio() {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  const isMobileScreen = Math.min(width, height) < 768;
-  const isPortrait = height >= width;
-  return isMobileScreen && isPortrait ? 9 / 16 : 16 / 9;
-}
-
-interface ScreenAspectFrameProps {
+interface StreamAspectFrameProps {
+  /** Video whose native width/height define the frame (local or remote stream). */
+  videoRef: RefObject<HTMLVideoElement | null>;
   children: ReactNode;
   className?: string;
+  fallbackAspect?: number;
 }
 
 /**
- * Centers a frame that matches the screen aspect ratio inside its parent.
- * Video fills the frame with object-cover/center — no off-center crop.
+ * Centers a frame sized to the stream’s real aspect ratio so remote shows the
+ * same framing/distance as the sender’s local preview — not the viewer’s screen.
  */
-export default function ScreenAspectFrame({
+export default function StreamAspectFrame({
+  videoRef,
   children,
   className = "",
-}: ScreenAspectFrameProps) {
+  fallbackAspect = 16 / 9,
+}: StreamAspectFrameProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const aspectRatio = useStreamAspectRatio(videoRef, fallbackAspect);
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
@@ -41,12 +34,11 @@ export default function ScreenAspectFrame({
       const ph = el.clientHeight;
       if (pw <= 0 || ph <= 0) return;
 
-      const ar = getScreenAspectRatio();
       let width = pw;
-      let height = width / ar;
+      let height = width / aspectRatio;
       if (height > ph) {
         height = ph;
-        width = height * ar;
+        width = height * aspectRatio;
       }
       setSize({ width, height });
     };
@@ -54,12 +46,8 @@ export default function ScreenAspectFrame({
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    window.addEventListener("orientationchange", update);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("orientationchange", update);
-    };
-  }, []);
+    return () => ro.disconnect();
+  }, [aspectRatio]);
 
   return (
     <div
