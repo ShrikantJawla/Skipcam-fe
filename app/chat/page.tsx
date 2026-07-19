@@ -278,20 +278,7 @@ export default function ChatPage() {
                   muted
                   placeholder={status !== "connected"}
                   placeholderContent={
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-stage px-4 text-center">
-                      <p className="text-sm text-white/70">
-                        {status === "connecting"
-                          ? "Connecting video…"
-                          : status === "waiting"
-                            ? "Waiting for partner…"
-                            : "Camera ready"}
-                      </p>
-                      {connectionError && (
-                        <p className="max-w-xs text-xs text-amber-300">
-                          {connectionError}
-                        </p>
-                      )}
-                    </div>
+                    <div className="h-full w-full bg-stage" />
                   }
                   className="absolute inset-0 rounded-none border-0 bg-stage"
                   labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"

@@ -39,11 +39,11 @@ export default function VideoBox({
         autoPlay
         playsInline
         muted={muted}
-        className={`absolute inset-0 h-full w-full ${fitClass} ${placeholder ? "opacity-0" : "opacity-100"} ${videoClassName}`}
+        className={`h-full w-full ${fitClass} ${placeholder ? "invisible" : ""} ${videoClassName}`}
       />
 
       {placeholder && (
-        <div className="pointer-events-none absolute inset-0 z-[1]">
+        <div className="absolute inset-0">
           {placeholderContent ?? (
             <div className="flex h-full w-full items-center justify-center bg-stage text-sm text-white/50">
               Waiting for stranger...
@@ -54,7 +54,7 @@ export default function VideoBox({
 
       {label && !placeholder && (
         <span
-          className={`absolute bottom-2 left-2 z-[2] text-xs font-medium text-white ${labelClassName}`}
+          className={`absolute bottom-2 left-2 text-xs font-medium text-white ${labelClassName}`}
         >
           {label}
         </span>
