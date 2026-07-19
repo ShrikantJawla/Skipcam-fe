@@ -302,10 +302,11 @@ export default function ChatPage() {
           </div>
         </header>
 
-        {/* Mobile: one full-bleed stage. Desktop: video + side chat. */}
-        <div className="relative min-h-0 flex-1 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-2.5 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="relative flex min-h-0 h-full flex-col gap-0 sm:px-5 lg:gap-2 lg:px-0">
-            <section className="absolute inset-0 overflow-hidden bg-stage lg:relative lg:min-h-0 lg:flex-1 lg:rounded-2xl lg:border lg:border-ink/10 lg:shadow-[0_20px_50px_-24px_rgba(15,23,42,0.55)]">
+        {/* Mobile: flex-1 stage (in-flow height). Desktop: video + side chat. */}
+        <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-2.5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="relative flex min-h-0 flex-1 flex-col gap-0 px-0 sm:px-5 lg:gap-2 lg:px-0">
+            {/* Must stay in normal flow (flex-1) — absolute-only stages collapse to 0 height on mobile */}
+            <section className="relative min-h-0 flex-1 overflow-hidden bg-stage lg:rounded-2xl lg:border lg:border-ink/10 lg:shadow-[0_20px_50px_-24px_rgba(15,23,42,0.55)]">
               <div
                 className={`absolute inset-0 overflow-hidden ${status === "connected" ? "stage-vignette" : ""}`}
               >
@@ -354,7 +355,6 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Padding keeps PIP above the floating mobile control dock */}
               <DraggablePip padding={72}>
                 <div className="relative overflow-hidden rounded-xl ring-2 ring-white/25 shadow-[0_12px_30px_rgba(0,0,0,0.45)] transition hover:ring-white/40">
                   <VideoBox
@@ -396,10 +396,21 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Mobile controls — overlaid on the video, not a second row */}
+              {/* Mobile controls — overlaid on the video */}
               <div className="absolute inset-x-0 bottom-0 z-30 flex items-center justify-between gap-2 bg-gradient-to-t from-ink/80 via-ink/40 to-transparent px-3 pt-10 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
                 {controls}
               </div>
+
+              {/* Mobile chat sheet */}
+              {chatEnabled && (
+                <div className="absolute inset-x-2 bottom-[4.5rem] z-40 h-[28vh] overflow-hidden rounded-xl shadow-lg lg:hidden">
+                  <ChatPanel
+                    messages={messages}
+                    enabled={chatEnabled}
+                    onSend={sendMessage}
+                  />
+                </div>
+              )}
             </section>
 
             {/* Desktop controls under the stage */}
@@ -412,25 +423,13 @@ export default function ChatPage() {
             </p>
           </div>
 
-          {/* Chat: side panel on desktop only — on mobile it was stealing height */}
-          <div className="hidden min-h-0 overflow-hidden px-5 pb-2 sm:px-5 lg:block lg:px-0 lg:pb-0">
+          <div className="hidden min-h-0 overflow-hidden lg:block">
             <ChatPanel
               messages={messages}
               enabled={chatEnabled}
               onSend={sendMessage}
             />
           </div>
-
-          {/* Mobile chat sheet — compact overlay above the control dock */}
-          {chatEnabled && (
-            <div className="absolute inset-x-2 bottom-[4.5rem] z-40 h-[30vh] overflow-hidden rounded-xl shadow-lg sm:inset-x-5 lg:hidden">
-              <ChatPanel
-                messages={messages}
-                enabled={chatEnabled}
-                onSend={sendMessage}
-              />
-            </div>
-          )}
         </div>
       </div>
 
