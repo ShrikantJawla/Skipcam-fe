@@ -16,22 +16,15 @@ function getSignalingUrl() {
   return "http://localhost:5000";
 }
 
-/** Prefer upright selfie framing (WhatsApp-style). Display uses cover to fill the stage. */
-function getVideoConstraintsForScreen(): MediaTrackConstraints {
-  // const isMobilePortrait =
-  //   Math.min(window.innerWidth, window.innerHeight) < 768 &&
-  //   window.innerHeight >= window.innerWidth;
-
-  // return {
-  //   facingMode: "user",
-  //   ...(isMobilePortrait
-  //     ? { aspectRatio: { ideal: 9 / 16 } }
-  //     : { aspectRatio: { ideal: 16 / 9 } }),
-  // };
+/**
+ * Natural front camera — same idea as WhatsApp / Zoom.
+ * Tile framing is handled in the UI with object-cover, not here.
+ */
+function getVideoConstraints(): MediaTrackConstraints {
   return {
-    aspectRatio: { ideal: 4 / 3 },
-    width: { ideal: 4000 },
-    height: { ideal: 3000 },
+    facingMode: "user",
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
   };
 }
 
@@ -282,17 +275,8 @@ export function useWebRTC() {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: true,
+            video: getVideoConstraints(),
           });
-          const videoStream = stream.getVideoTracks()[0];
-          const constraints = videoStream.getConstraints();
-          await videoStream.applyConstraints({
-            aspectRatio: constraints.aspectRatio,
-            width: constraints.width,
-            height: constraints.height,
-          });
-          console.log("---->", videoStream.getCapabilities());
-          console.log("---->", videoStream.getConstraints());
         } catch {
           // If the device rejects aspectRatio ideals, fall back to a plain camera
           stream = await navigator.mediaDevices.getUserMedia({

@@ -44,7 +44,7 @@ export default function VideoBox({
         autoPlay
         playsInline
         muted={muted}
-        className={`h-full w-full ${placeholder ? "invisible" : ""} ${videoClassName}`}
+        className={`h-full w-full ${fitClass} ${placeholder ? "invisible" : ""} ${videoClassName}`}
       />
 
       {placeholder && (

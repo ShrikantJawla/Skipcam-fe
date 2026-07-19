@@ -269,19 +269,24 @@ export default function ChatPage() {
           <div className="flex min-h-0 flex-col gap-1.5 sm:gap-2">
             <section className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-ink/10 bg-stage shadow-[0_20px_50px_-24px_rgba(15,23,42,0.55)] sm:rounded-2xl">
               <div
-                className={`absolute inset-0 overflow-hidden rounded-xl bg-stage sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
+                className={`absolute inset-0 flex items-center justify-center overflow-hidden rounded-xl bg-black [container-type:size] sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
               >
-                {/* WhatsApp-style: remote fills the whole call stage */}
+                {/* 16:9 = 1280×720 — scales to fit stage on mobile & desktop */}
                 <VideoBox
                   videoRef={remoteVideoRef}
                   label="Stranger"
-                  fit="cover"
+                  fit="contain"
                   muted
                   placeholder={status !== "connected"}
                   placeholderContent={
-                    <div className="h-full w-full bg-stage" />
+                    <div className="h-full w-full bg-black" />
                   }
-                  className="absolute inset-0 rounded-none border-0 bg-stage"
+                  className="rounded-none border-0 bg-black"
+                  style={{
+                    aspectRatio: "16 / 9",
+                    width: "min(100cqw, 1280px, calc(100cqh * 16 / 9))",
+                    height: "auto",
+                  }}
                   labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
                 />
               </div>
