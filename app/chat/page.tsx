@@ -7,7 +7,6 @@ import DraggablePip from "@/components/DraggablePip";
 import MatchFlash from "@/components/MatchFlash";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import ReactionBurst, { ReactionBar } from "@/components/ReactionBurst";
-import StreamAspectFrame from "@/components/StreamAspectFrame";
 import VideoBox from "@/components/VideoBox";
 import WaitingScene from "@/components/WaitingScene";
 import { useWebRTC } from "@/hooks/useWebRTC";
@@ -272,26 +271,19 @@ export default function ChatPage() {
               <div
                 className={`absolute inset-0 overflow-hidden rounded-xl bg-stage sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
               >
-                <StreamAspectFrame
+                {/* WhatsApp-style: remote fills the whole call stage */}
+                <VideoBox
                   videoRef={remoteVideoRef}
-                  forceAspect={9 / 16}
-                  frameScale={0.82}
-                  fallbackAspect={9 / 16}
-                >
-                  <VideoBox
-                    videoRef={remoteVideoRef}
-                    label="Stranger"
-                    fit="contain"
-                    muted
-                    placeholder={status !== "connected"}
-                    placeholderContent={
-                      <div className="h-full w-full bg-stage" />
-                    }
-                    className="h-full w-full rounded-none border-0 bg-stage"
-                    videoClassName="scale-[0.92]"
-                    labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
-                  />
-                </StreamAspectFrame>
+                  label="Stranger"
+                  fit="cover"
+                  muted
+                  placeholder={status !== "connected"}
+                  placeholderContent={
+                    <div className="h-full w-full bg-stage" />
+                  }
+                  className="absolute inset-0 rounded-none border-0 bg-stage"
+                  labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
+                />
               </div>
 
               {status !== "connected" && (
@@ -327,14 +319,15 @@ export default function ChatPage() {
               )}
 
               <DraggablePip padding={10}>
-                <div className="relative overflow-hidden rounded-xl ring-2 ring-white/25 shadow-[0_12px_30px_rgba(0,0,0,0.45)] transition hover:ring-white/40">
+                {/* WhatsApp-style self view: small portrait PIP */}
+                <div className="relative overflow-hidden rounded-2xl ring-2 ring-white/30 shadow-[0_12px_30px_rgba(0,0,0,0.45)] transition hover:ring-white/50">
                   <VideoBox
                     videoRef={localVideoRef}
                     muted
                     label="You"
-                    fit="contain"
-                    className="aspect-9/16 h-20 w-auto sm:h-24 md:h-28"
-                    videoClassName="pointer-events-none origin-center [transform:scaleX(-0.92)_scaleY(0.92)]"
+                    fit="cover"
+                    className="aspect-9/16 h-30 w-auto sm:h-36 md:h-40"
+                    videoClassName="pointer-events-none -scale-x-100"
                     labelClassName="bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 text-[9px] backdrop-blur-sm sm:bottom-1.5 sm:left-1.5 sm:text-[10px]"
                   />
                   {!cameraOn && (

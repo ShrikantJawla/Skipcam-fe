@@ -16,29 +16,18 @@ function getSignalingUrl() {
   return "http://localhost:5000";
 }
 
-/** Prefer vertical (9:16). Does not change WebRTC connect logic. */
+/** Prefer upright selfie framing (WhatsApp-style). Display uses cover to fill the stage. */
 function getVideoConstraintsForScreen(): MediaTrackConstraints {
+  const isMobilePortrait =
+    Math.min(window.innerWidth, window.innerHeight) < 768 &&
+    window.innerHeight >= window.innerWidth;
+
   return {
     facingMode: "user",
-    aspectRatio: { ideal: 9 / 16 },
-    width: { ideal: 720 },
-    height: { ideal: 1280 },
+    ...(isMobilePortrait
+      ? { aspectRatio: { ideal: 9 / 16 } }
+      : { aspectRatio: { ideal: 16 / 9 } }),
   };
-}
-
-/** Pull camera zoom to minimum when the device supports it (wider / zoomed-out view). */
-async function applyZoomOut(track: MediaStreamTrack) {
-  const caps = track.getCapabilities?.() as
-    | (MediaTrackCapabilities & { zoom?: { min: number; max: number } })
-    | undefined;
-  if (!caps?.zoom) return;
-  try {
-    await track.applyConstraints({
-      advanced: [{ zoom: caps.zoom.min } as MediaTrackConstraintSet],
-    });
-  } catch {
-    // Device may advertise zoom but reject applyConstraints — ignore.
-  }
 }
 
 const ICE_CONFIG: RTCConfiguration = {
@@ -301,11 +290,6 @@ export function useWebRTC() {
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
           return;
-        }
-
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-          await applyZoomOut(videoTrack);
         }
 
         localStreamRef.current = stream;
