@@ -8,7 +8,7 @@ interface VideoBoxProps {
   label?: string;
   placeholder?: boolean;
   placeholderContent?: ReactNode;
-  /** cover fills the box; contain letterboxes */
+  /** cover crops to fill; contain keeps the full face visible across aspect ratios */
   fit?: "cover" | "contain";
   className?: string;
   videoClassName?: string;
@@ -26,6 +26,7 @@ export default function VideoBox({
   videoClassName = "",
   labelClassName = "",
 }: VideoBoxProps) {
+  // Cover fills the stage (no black bars). Center keeps faces in frame across orientations.
   const fitClass =
     fit === "contain"
       ? "object-contain object-center"
@@ -38,8 +39,7 @@ export default function VideoBox({
         autoPlay
         playsInline
         muted={muted}
-        // Absolute fill so object-cover always paints the full stage on mobile
-        className={`absolute inset-0 h-full w-full ${fitClass} ${placeholder ? "invisible" : ""} ${videoClassName}`}
+        className={`h-full w-full ${fitClass} ${placeholder ? "invisible" : ""} ${videoClassName}`}
       />
 
       {placeholder && (
@@ -54,7 +54,7 @@ export default function VideoBox({
 
       {label && !placeholder && (
         <span
-          className={`absolute bottom-2 left-2 z-[1] text-xs font-medium text-white ${labelClassName}`}
+          className={`absolute bottom-2 left-2 text-xs font-medium text-white ${labelClassName}`}
         >
           {label}
         </span>

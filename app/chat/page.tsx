@@ -208,53 +208,16 @@ export default function ChatPage() {
     setShowOnboarding(false);
   };
 
-  const controls = (
-    <>
-      <div className="flex items-center gap-1 sm:gap-1.5">
-        {status === "connected" && (
-          <ControlButton label="Report user" danger onClick={handleReport}>
-            <FlagIcon />
-          </ControlButton>
-        )}
-      </div>
-
-      <div className="flex shrink-0 items-center gap-2">
-        {status === "idle" && (
-          <button
-            type="button"
-            onClick={startMatching}
-            disabled={!cameraReady || showOnboarding}
-            className="btn btn-primary min-w-24 px-4! py-2! text-sm disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-28 sm:px-5! sm:py-2.5!"
-          >
-            Connect
-          </button>
-        )}
-
-        {(status === "waiting" ||
-          status === "connecting" ||
-          status === "connected") && (
-          <button
-            type="button"
-            onClick={nextPartner}
-            className="btn btn-primary min-w-20 px-4! py-2! text-sm sm:min-w-24 sm:px-5! sm:py-2.5!"
-          >
-            Next
-          </button>
-        )}
-      </div>
-    </>
-  );
-
   return (
     <main className="session-shell relative flex h-dvh max-h-dvh flex-col overflow-hidden text-ink">
-      <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:px-6 lg:py-3">
-        <header className="mb-1.5 flex shrink-0 items-center justify-between gap-2 px-2.5 sm:mb-2.5 sm:gap-3 sm:px-5 lg:px-0">
+      <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-3 lg:px-6">
+        <header className="mb-1.5 flex shrink-0 items-center justify-between gap-2 sm:mb-2.5 sm:gap-3">
           <Link
             href="/"
             className="group flex min-w-0 items-center gap-2 sm:gap-2.5"
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-signal font-display text-xs font-bold text-white shadow-sm transition group-hover:bg-signal-deep sm:h-9 sm:w-9 sm:rounded-xl sm:text-sm">
-              S
+              Z
             </span>
             <span className="min-w-0">
               <span className="block truncate font-display text-sm font-bold tracking-tight sm:text-base">
@@ -302,12 +265,11 @@ export default function ChatPage() {
           </div>
         </header>
 
-        {/* Mobile: one full-bleed stage. Desktop: video + side chat. */}
-        <div className="relative min-h-0 flex-1 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-2.5 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="relative flex min-h-0 h-full flex-col gap-0 sm:px-5 lg:gap-2 lg:px-0">
-            <section className="absolute inset-0 overflow-hidden bg-stage lg:relative lg:min-h-0 lg:flex-1 lg:rounded-2xl lg:border lg:border-ink/10 lg:shadow-[0_20px_50px_-24px_rgba(15,23,42,0.55)]">
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(150px,30%)] gap-1.5 sm:gap-2.5 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-none xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="flex min-h-0 flex-col gap-1.5 sm:gap-2">
+            <section className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-ink/10 bg-stage shadow-[0_20px_50px_-24px_rgba(15,23,42,0.55)] sm:rounded-2xl">
               <div
-                className={`absolute inset-0 overflow-hidden ${status === "connected" ? "stage-vignette" : ""}`}
+                className={`absolute inset-0 overflow-hidden rounded-xl sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
               >
                 <VideoBox
                   videoRef={remoteVideoRef}
@@ -323,7 +285,7 @@ export default function ChatPage() {
               </div>
 
               {status !== "connected" && (
-                <div className="absolute inset-0 z-20">
+                <div className="absolute inset-0 z-20 rounded-xl sm:rounded-2xl">
                   <WaitingScene
                     waiting={status === "waiting" || status === "connecting"}
                     title={
@@ -354,15 +316,13 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Padding keeps PIP above the floating mobile control dock */}
-              <DraggablePip padding={72}>
+              <DraggablePip padding={10}>
                 <div className="relative overflow-hidden rounded-xl ring-2 ring-white/25 shadow-[0_12px_30px_rgba(0,0,0,0.45)] transition hover:ring-white/40">
                   <VideoBox
                     videoRef={localVideoRef}
                     muted
                     label="You"
-                    fit="cover"
-                    className="h-16 w-28 sm:h-24 sm:w-40 md:h-28 md:w-48"
+                    className="h-14 w-24 sm:h-24 sm:w-40 md:h-28 md:w-48"
                     videoClassName="pointer-events-none -scale-x-100"
                     labelClassName="bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 text-[9px] backdrop-blur-sm sm:bottom-1.5 sm:left-1.5 sm:text-[10px]"
                   />
@@ -395,16 +355,59 @@ export default function ChatPage() {
                   {toast}
                 </div>
               )}
-
-              {/* Mobile controls — overlaid on the video, not a second row */}
-              <div className="absolute inset-x-0 bottom-0 z-30 flex items-center justify-between gap-2 bg-gradient-to-t from-ink/80 via-ink/40 to-transparent px-3 pt-10 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
-                {controls}
-              </div>
             </section>
 
-            {/* Desktop controls under the stage */}
-            <div className="mt-auto hidden shrink-0 items-center justify-between gap-2 rounded-2xl border border-line/80 bg-surface px-4 py-2.5 shadow-sm lg:flex">
-              {controls}
+            <div className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-line/80 bg-surface px-2 py-2 shadow-sm sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-2.5">
+              <div className="flex items-center gap-1 sm:gap-1.5">
+                {/* <ControlButton
+                  label={micOn ? "Mute microphone" : "Unmute microphone"}
+                  active={!micOn}
+                  onClick={toggleMic}
+                >
+                  {micOn ? <MicIcon /> : <MicOffIcon />}
+                </ControlButton>
+                <ControlButton
+                  label={cameraOn ? "Turn camera off" : "Turn camera on"}
+                  active={!cameraOn}
+                  onClick={toggleCamera}
+                >
+                  {cameraOn ? <CamIcon /> : <CamOffIcon />}
+                </ControlButton> */}
+                {status === "connected" && (
+                  <ControlButton
+                    label="Report user"
+                    danger
+                    onClick={handleReport}
+                  >
+                    <FlagIcon />
+                  </ControlButton>
+                )}
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                {status === "idle" && (
+                  <button
+                    type="button"
+                    onClick={startMatching}
+                    disabled={!cameraReady || showOnboarding}
+                    className="btn btn-primary min-w-24 px-4! py-2! text-sm disabled:cursor-not-allowed disabled:opacity-50 sm:min-w-28 sm:px-5! sm:py-2.5!"
+                  >
+                    Connect
+                  </button>
+                )}
+
+                {(status === "waiting" ||
+                  status === "connecting" ||
+                  status === "connected") && (
+                  <button
+                    type="button"
+                    onClick={nextPartner}
+                    className="btn btn-primary min-w-20 px-4! py-2! text-sm sm:min-w-24 sm:px-5! sm:py-2.5!"
+                  >
+                    Next
+                  </button>
+                )}
+              </div>
             </div>
 
             <p className="hidden text-xs text-ink-soft lg:block">
@@ -412,25 +415,13 @@ export default function ChatPage() {
             </p>
           </div>
 
-          {/* Chat: side panel on desktop only — on mobile it was stealing height */}
-          <div className="hidden min-h-0 overflow-hidden px-5 pb-2 sm:px-5 lg:block lg:px-0 lg:pb-0">
+          <div className="min-h-0 overflow-hidden">
             <ChatPanel
               messages={messages}
               enabled={chatEnabled}
               onSend={sendMessage}
             />
           </div>
-
-          {/* Mobile chat sheet — compact overlay above the control dock */}
-          {chatEnabled && (
-            <div className="absolute inset-x-2 bottom-[4.5rem] z-40 h-[30vh] overflow-hidden rounded-xl shadow-lg sm:inset-x-5 lg:hidden">
-              <ChatPanel
-                messages={messages}
-                enabled={chatEnabled}
-                onSend={sendMessage}
-              />
-            </div>
-          )}
         </div>
       </div>
 
