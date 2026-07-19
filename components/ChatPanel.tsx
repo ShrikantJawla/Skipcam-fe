@@ -17,6 +17,7 @@ function formatTime(at: number) {
   }).format(at);
 }
 
+
 function pickIcebreakers(seed: number) {
   const start = seed % ICEBREAKERS.length;
   return [
