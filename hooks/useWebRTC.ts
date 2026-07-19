@@ -255,8 +255,13 @@ export function useWebRTC() {
     (async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
           audio: true,
+          video: {
+            facingMode: "user",
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            aspectRatio: { ideal: 16 / 9 },
+          },
         });
 
         if (cancelled) {

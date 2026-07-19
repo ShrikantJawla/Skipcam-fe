@@ -8,6 +8,8 @@ interface VideoBoxProps {
   label?: string;
   placeholder?: boolean;
   placeholderContent?: ReactNode;
+  /** cover crops to fill; contain keeps the full face visible across aspect ratios */
+  fit?: "cover" | "contain";
   className?: string;
   videoClassName?: string;
   labelClassName?: string;
@@ -19,10 +21,13 @@ export default function VideoBox({
   label,
   placeholder = false,
   placeholderContent,
+  fit = "cover",
   className = "",
   videoClassName = "",
   labelClassName = "",
 }: VideoBoxProps) {
+  const fitClass = fit === "contain" ? "object-contain" : "object-cover object-center";
+
   return (
     <div className={`relative overflow-hidden bg-stage ${className}`}>
       <video
@@ -30,7 +35,7 @@ export default function VideoBox({
         autoPlay
         playsInline
         muted={muted}
-        className={`h-full w-full object-cover ${placeholder ? "invisible" : ""} ${videoClassName}`}
+        className={`h-full w-full ${fitClass} ${placeholder ? "invisible" : ""} ${videoClassName}`}
       />
 
       {placeholder && (

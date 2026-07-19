@@ -274,6 +274,7 @@ export default function ChatPage() {
                 <VideoBox
                   videoRef={remoteVideoRef}
                   label="Stranger"
+                  fit="contain"
                   placeholder={status !== "connected"}
                   placeholderContent={
                     <div className="h-full w-full bg-stage" />
