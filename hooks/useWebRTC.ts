@@ -16,15 +16,17 @@ function getSignalingUrl() {
   return "http://localhost:5000";
 }
 
-/**
- * Natural front camera — same approach as WhatsApp / Zoom / Meet.
- * Display tiles use object-cover; no forced crop at capture time.
- */
+/** Prefer upright selfie framing (WhatsApp-style). Display uses cover to fill the stage. */
 function getVideoConstraintsForScreen(): MediaTrackConstraints {
+  const isMobilePortrait =
+    Math.min(window.innerWidth, window.innerHeight) < 768 &&
+    window.innerHeight >= window.innerWidth;
+
   return {
     facingMode: "user",
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
+    ...(isMobilePortrait
+      ? { aspectRatio: { ideal: 9 / 16 } }
+      : { aspectRatio: { ideal: 16 / 9 } }),
   };
 }
 
@@ -82,7 +84,6 @@ export function useWebRTC() {
   const socketRef = useRef<Socket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const countedConnectionRef = useRef(false);
   const onConnectedRef = useRef<(() => void) | null>(null);
@@ -95,7 +96,6 @@ export function useWebRTC() {
     pcRef.current?.close();
     pcRef.current = null;
     pendingCandidatesRef.current = [];
-    remoteStreamRef.current = null;
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
@@ -136,7 +136,6 @@ export function useWebRTC() {
 
       pc.ontrack = (event) => {
         const stream = event.streams[0] ?? new MediaStream([event.track]);
-        remoteStreamRef.current = stream;
         const video = remoteVideoRef.current;
         if (video) {
           video.srcObject = stream;
@@ -316,23 +315,14 @@ export function useWebRTC() {
     };
   }, [cleanupPeerConnection]);
 
-  // Keep <video> elements attached if they remount (preview ↔ PIP / connect).
   useEffect(() => {
-    const localVideo = localVideoRef.current;
-    const localStream = localStreamRef.current;
-    if (localVideo && localStream && localVideo.srcObject !== localStream) {
-      localVideo.srcObject = localStream;
-      void localVideo.play().catch(() => {});
+    const video = localVideoRef.current;
+    const stream = localStreamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
     }
-
-    const remoteVideo = remoteVideoRef.current;
-    const remoteStream = remoteStreamRef.current;
-    if (remoteVideo && remoteStream && remoteVideo.srcObject !== remoteStream) {
-      remoteVideo.srcObject = remoteStream;
-      remoteVideo.muted = true;
-      remoteVideo.playsInline = true;
-      void remoteVideo.play().catch(() => {});
-    }
+    void video.play().catch(() => {});
   });
 
   const startMatching = useCallback(() => {

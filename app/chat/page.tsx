@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import CallStage from "@/components/CallStage";
 import ChatPanel from "@/components/ChatPanel";
+import DraggablePip from "@/components/DraggablePip";
 import MatchFlash from "@/components/MatchFlash";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import ReactionBurst, { ReactionBar } from "@/components/ReactionBurst";
+import VideoBox from "@/components/VideoBox";
 import WaitingScene from "@/components/WaitingScene";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { BRAND } from "@/lib/brand";
@@ -266,51 +267,79 @@ export default function ChatPage() {
 
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(150px,30%)] gap-1.5 sm:gap-2.5 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-none xl:grid-cols-[minmax(0,1fr)_380px]">
           <div className="flex min-h-0 flex-col gap-1.5 sm:gap-2">
-            <CallStage
-              localVideoRef={localVideoRef}
-              remoteVideoRef={remoteVideoRef}
-              connected={status === "connected"}
-              cameraOn={cameraOn}
-              overlay={
-                status !== "connected" ? (
-                  <div className="absolute inset-0 z-20 bg-linear-to-b from-black/55 via-black/25 to-black/60">
-                    <WaitingScene
-                      waiting={
-                        status === "waiting" || status === "connecting"
-                      }
-                      title={
-                        status === "connecting"
-                          ? "Connecting"
-                          : status === "waiting"
-                            ? "Finding someone"
-                            : BRAND.name
-                      }
-                      subtitle={
-                        status === "connecting"
-                          ? "Matched — opening your private video line…"
-                          : status === "waiting"
-                            ? "Stay here — a partner will join as soon as someone’s ready."
-                            : cameraReady
-                              ? "Your camera is live. Connect when you’re ready."
-                              : "Allow camera access to begin."
-                      }
-                      queueLine={
-                        status === "waiting"
-                          ? QUEUE_LINES[queueIndex]
-                          : undefined
-                      }
-                      tip={
-                        status === "waiting" || status === "connecting"
-                          ? WAITING_TIPS[tipIndex]
-                          : undefined
-                      }
-                    />
-                  </div>
-                ) : undefined
-              }
-            >
+            <section className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-ink/10 bg-stage shadow-[0_20px_50px_-24px_rgba(15,23,42,0.55)] sm:rounded-2xl">
+              <div
+                className={`absolute inset-0 overflow-hidden rounded-xl bg-stage sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
+              >
+                {/* WhatsApp-style: remote fills the whole call stage */}
+                <VideoBox
+                  videoRef={remoteVideoRef}
+                  label="Stranger"
+                  fit="cover"
+                  muted
+                  placeholder={status !== "connected"}
+                  placeholderContent={
+                    <div className="h-full w-full bg-stage" />
+                  }
+                  className="absolute inset-0 rounded-none border-0 bg-stage"
+                  labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
+                />
+              </div>
+
+              {status !== "connected" && (
+                <div className="absolute inset-0 z-20 rounded-xl sm:rounded-2xl">
+                  <WaitingScene
+                    waiting={status === "waiting" || status === "connecting"}
+                    title={
+                      status === "connecting"
+                        ? "Connecting"
+                        : status === "waiting"
+                          ? "Finding someone"
+                          : BRAND.name
+                    }
+                    subtitle={
+                      status === "connecting"
+                        ? "Matched — opening your private video line…"
+                        : status === "waiting"
+                          ? "Stay here — a partner will join as soon as someone’s ready."
+                          : cameraReady
+                            ? "Your camera is live. Connect when you’re ready."
+                            : "Allow camera access to begin."
+                    }
+                    queueLine={
+                      status === "waiting" ? QUEUE_LINES[queueIndex] : undefined
+                    }
+                    tip={
+                      status === "waiting" || status === "connecting"
+                        ? WAITING_TIPS[tipIndex]
+                        : undefined
+                    }
+                  />
+                </div>
+              )}
+
+              <DraggablePip padding={10}>
+                {/* WhatsApp-style self view: small portrait PIP */}
+                <div className="relative overflow-hidden rounded-2xl ring-2 ring-white/30 shadow-[0_12px_30px_rgba(0,0,0,0.45)] transition hover:ring-white/50">
+                  <VideoBox
+                    videoRef={localVideoRef}
+                    muted
+                    label="You"
+                    fit="cover"
+                    className="aspect-9/16 h-30 w-auto sm:h-36 md:h-40"
+                    videoClassName="pointer-events-none -scale-x-100"
+                    labelClassName="bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 text-[9px] backdrop-blur-sm sm:bottom-1.5 sm:left-1.5 sm:text-[10px]"
+                  />
+                  {!cameraOn && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-ink/85 text-[9px] font-semibold tracking-wide text-white/70 sm:text-[10px]">
+                      OFF
+                    </div>
+                  )}
+                </div>
+              </DraggablePip>
+
               {status === "connected" && (
-                <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 rounded-full bg-black/50 px-2.5 py-1 text-[10px] font-semibold tracking-[0.14em] text-white backdrop-blur-md sm:top-4 sm:left-4 sm:text-[11px]">
+                <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 rounded-md bg-black/45 px-2 py-1 text-[10px] font-semibold tracking-[0.14em] text-white backdrop-blur-md sm:top-3 sm:left-3 sm:px-2.5 sm:text-[11px]">
                   <span className="h-1.5 w-1.5 animate-status-pulse rounded-full bg-emerald-400" />
                   LIVE
                 </div>
@@ -326,15 +355,15 @@ export default function ChatPage() {
               <MatchFlash show={matchFlash} momentNumber={flashMoment} />
 
               {toast && (
-                <div className="absolute top-3 left-1/2 z-30 -translate-x-1/2 rounded-full border border-white/10 bg-black/75 px-3 py-2 text-xs font-medium text-white backdrop-blur-md">
+                <div className="absolute top-3 left-1/2 z-30 -translate-x-1/2 rounded-lg border border-white/10 bg-ink/80 px-3 py-2 text-xs font-medium text-white backdrop-blur-md">
                   {toast}
                 </div>
               )}
-            </CallStage>
+            </section>
 
             <div className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-line/80 bg-surface px-2 py-2 shadow-sm sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-2.5">
               <div className="flex items-center gap-1 sm:gap-1.5">
-                <ControlButton
+                {/* <ControlButton
                   label={micOn ? "Mute microphone" : "Unmute microphone"}
                   active={!micOn}
                   onClick={toggleMic}
@@ -347,7 +376,7 @@ export default function ChatPage() {
                   onClick={toggleCamera}
                 >
                   {cameraOn ? <CamIcon /> : <CamOffIcon />}
-                </ControlButton>
+                </ControlButton> */}
                 {status === "connected" && (
                   <ControlButton
                     label="Report user"
