@@ -271,7 +271,7 @@ export default function ChatPage() {
               <div
                 className={`absolute inset-0 flex items-center justify-center overflow-hidden rounded-xl bg-black [container-type:size] sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
               >
-                {/* 16:9 = 1280×720 — scales to fit stage on mobile & desktop */}
+                {/* 16:9 = 960×540 — scales to fit stage on mobile & desktop */}
                 <VideoBox
                   videoRef={remoteVideoRef}
                   label="Stranger"
@@ -284,7 +284,7 @@ export default function ChatPage() {
                   className="rounded-none border-0 bg-black"
                   style={{
                     aspectRatio: "16 / 9",
-                    width: "min(100cqw, 1280px, calc(100cqh * 16 / 9))",
+                    width: "min(100cqw, 960px, calc(100cqh * 16 / 9))",
                     height: "auto",
                   }}
                   labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
