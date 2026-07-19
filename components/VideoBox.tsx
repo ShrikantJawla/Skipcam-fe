@@ -8,7 +8,7 @@ interface VideoBoxProps {
   label?: string;
   placeholder?: boolean;
   placeholderContent?: ReactNode;
-  /** cover crops; contain shows the full frame (use for remote on mobile↔desktop) */
+  /** cover fills the box; contain letterboxes */
   fit?: "cover" | "contain";
   className?: string;
   videoClassName?: string;
@@ -38,12 +38,12 @@ export default function VideoBox({
         autoPlay
         playsInline
         muted={muted}
-        // Never use visibility:hidden for live streams — some browsers stop decoding.
-        className={`absolute inset-0 h-full w-full ${fitClass} ${placeholder ? "opacity-0" : "opacity-100"} ${videoClassName}`}
+        // Absolute fill so object-cover always paints the full stage on mobile
+        className={`absolute inset-0 h-full w-full ${fitClass} ${placeholder ? "invisible" : ""} ${videoClassName}`}
       />
 
       {placeholder && (
-        <div className="absolute inset-0 z-[1]">
+        <div className="absolute inset-0">
           {placeholderContent ?? (
             <div className="flex h-full w-full items-center justify-center bg-stage text-sm text-white/50">
               Waiting for stranger...
@@ -54,7 +54,7 @@ export default function VideoBox({
 
       {label && !placeholder && (
         <span
-          className={`absolute bottom-2 left-2 z-[2] text-xs font-medium text-white ${labelClassName}`}
+          className={`absolute bottom-2 left-2 z-[1] text-xs font-medium text-white ${labelClassName}`}
         >
           {label}
         </span>

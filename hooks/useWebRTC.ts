@@ -20,19 +20,16 @@ const ICE_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun.cloudflare.com:3478" },
-    // Optional TURN via env (static openrelay creds are dead)
-    ...(process.env.NEXT_PUBLIC_TURN_URLS
-      ? [
-          {
-            urls: process.env.NEXT_PUBLIC_TURN_URLS.split(",").map((u) =>
-              u.trim(),
-            ),
-            username: process.env.NEXT_PUBLIC_TURN_USERNAME || "",
-            credential: process.env.NEXT_PUBLIC_TURN_CREDENTIAL || "",
-          },
-        ]
-      : []),
+    // Public free TURN relay — needed when peers are behind strict NATs
+    {
+      urls: [
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+      ],
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
   ],
 };
 
@@ -54,22 +51,9 @@ function makeMessage(text: string, from: ChatMessage["from"]): ChatMessage {
   };
 }
 
-async function playMedia(
-  el: HTMLMediaElement | null | undefined,
-  label: string,
-) {
-  if (!el) return;
-  try {
-    await el.play();
-  } catch (err) {
-    console.warn(`[Skipcam] ${label} play() failed:`, err);
-  }
-}
-
 export function useWebRTC() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [status, setStatus] = useState<MatchStatus>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -86,107 +70,27 @@ export function useWebRTC() {
   const socketRef = useRef<Socket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const countedConnectionRef = useRef(false);
   const onConnectedRef = useRef<(() => void) | null>(null);
-  const makingOfferRef = useRef(false);
 
   const clearChat = useCallback(() => {
     setMessages([]);
   }, []);
 
-  const stopRemoteAudio = useCallback(() => {
-    const audio = remoteAudioRef.current;
-    if (!audio) return;
-    audio.pause();
-    audio.srcObject = null;
-    remoteAudioRef.current = null;
-  }, []);
-
-  const attachRemoteTrack = useCallback(
-    (track: MediaStreamTrack, inboundStream?: MediaStream) => {
-      if (inboundStream) {
-        remoteStreamRef.current = inboundStream;
-      } else {
-        if (!remoteStreamRef.current) {
-          remoteStreamRef.current = new MediaStream();
-        }
-        const hasTrack = remoteStreamRef.current
-          .getTracks()
-          .some((t) => t.id === track.id);
-        if (!hasTrack) {
-          remoteStreamRef.current.addTrack(track);
-        }
-      }
-
-      const stream = remoteStreamRef.current;
-      if (!stream) return;
-
-      const video = remoteVideoRef.current;
-      if (video) {
-        if (video.srcObject !== stream) {
-          video.srcObject = stream;
-        }
-        // Keep video element muted — unmuted autoplay is blocked on mobile (blank).
-        video.muted = true;
-        video.playsInline = true;
-        void playMedia(video, "remote video");
-      }
-
-      // Remote audio on a separate element so video can stay muted for autoplay
-      if (stream.getAudioTracks().length > 0) {
-        if (!remoteAudioRef.current) {
-          remoteAudioRef.current = new Audio();
-          remoteAudioRef.current.autoplay = true;
-        }
-        const audio = remoteAudioRef.current;
-        if (audio.srcObject !== stream) {
-          audio.srcObject = stream;
-        }
-        audio.muted = false;
-        void playMedia(audio, "remote audio");
-      }
-
-      setStatus("connected");
-      if (!countedConnectionRef.current) {
-        countedConnectionRef.current = true;
-        setMatchFlash(true);
-        onConnectedRef.current?.();
-        window.setTimeout(() => setMatchFlash(false), 2200);
-      }
-    },
-    [],
-  );
-
   const cleanupPeerConnection = useCallback(() => {
-    makingOfferRef.current = false;
     pcRef.current?.close();
     pcRef.current = null;
     pendingCandidatesRef.current = [];
-    remoteStreamRef.current = null;
-    stopRemoteAudio();
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
-  }, [stopRemoteAudio]);
+  }, []);
 
   const addLocalTracks = useCallback((pc: RTCPeerConnection) => {
     const stream = localStreamRef.current;
-    if (!stream) {
-      console.warn("[Skipcam] No local stream when adding tracks");
-      return;
-    }
-
-    const existing = new Set(
-      pc
-        .getSenders()
-        .map((s) => s.track?.id)
-        .filter(Boolean),
-    );
-
+    if (!stream || pc.getSenders().some((s) => s.track)) return;
     for (const track of stream.getTracks()) {
-      if (existing.has(track.id)) continue;
       pc.addTrack(track, stream);
     }
   }, []);
@@ -217,29 +121,22 @@ export function useWebRTC() {
       };
 
       pc.ontrack = (event) => {
-        console.log("[Skipcam] ontrack", event.track.kind, event.track.id);
-        attachRemoteTrack(event.track, event.streams[0]);
-      };
-
-      pc.oniceconnectionstatechange = () => {
-        console.log("[Skipcam] ice:", pc.iceConnectionState);
-        if (
-          pc.iceConnectionState === "failed" ||
-          pc.iceConnectionState === "disconnected"
-        ) {
-          setConnectionError(
-            "Video link dropped. Tap Next to try another match.",
-          );
+        const [stream] = event.streams;
+        if (remoteVideoRef.current && stream) {
+          remoteVideoRef.current.srcObject = stream;
         }
-      };
-
-      pc.onconnectionstatechange = () => {
-        console.log("[Skipcam] pc:", pc.connectionState);
+        setStatus("connected");
+        if (!countedConnectionRef.current) {
+          countedConnectionRef.current = true;
+          setMatchFlash(true);
+          onConnectedRef.current?.();
+          window.setTimeout(() => setMatchFlash(false), 2200);
+        }
       };
 
       return pc;
     },
-    [attachRemoteTrack, cleanupPeerConnection],
+    [cleanupPeerConnection],
   );
 
   const bindSocketEvents = useCallback(
@@ -262,25 +159,17 @@ export function useWebRTC() {
         countedConnectionRef.current = false;
         setConnectionError(null);
         setStatus("connecting");
-
         const pc = createPeerConnection(socket);
-        addLocalTracks(pc);
 
-        if (!initiator) return;
-
-        makingOfferRef.current = true;
-        try {
-          const offer = await pc.createOffer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: true,
-          });
-          await pc.setLocalDescription(offer);
-          socket.emit("offer", pc.localDescription);
-        } catch (err) {
-          console.error("Failed to create offer:", err);
-          setConnectionError("Could not start video. Tap Next to retry.");
-        } finally {
-          makingOfferRef.current = false;
+        if (initiator) {
+          addLocalTracks(pc);
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socket.emit("offer", offer);
+          } catch (err) {
+            console.error("Failed to create offer:", err);
+          }
         }
       });
 
@@ -288,25 +177,17 @@ export function useWebRTC() {
         const socketInstance = socketRef.current;
         if (!socketInstance) return;
 
+        const pc = pcRef.current ?? createPeerConnection(socketInstance);
+
         try {
-          let pc = pcRef.current;
-          if (!pc || pc.signalingState === "closed") {
-            pc = createPeerConnection(socketInstance);
-            addLocalTracks(pc);
-          }
-
-          // Ignore glare if we're currently making an offer
-          if (makingOfferRef.current) return;
-
           await pc.setRemoteDescription(offer);
           addLocalTracks(pc);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          socketInstance.emit("answer", pc.localDescription);
+          socketInstance.emit("answer", answer);
           await flushPendingCandidates(pc);
         } catch (err) {
           console.error("Failed to handle offer:", err);
-          setConnectionError("Could not answer video. Tap Next to retry.");
         }
       });
 
@@ -315,13 +196,6 @@ export function useWebRTC() {
         if (!pc) return;
 
         try {
-          if (pc.signalingState !== "have-local-offer") {
-            console.warn(
-              "[Skipcam] Unexpected answer in state",
-              pc.signalingState,
-            );
-            return;
-          }
           await pc.setRemoteDescription(answer);
           await flushPendingCandidates(pc);
         } catch (err) {
@@ -380,6 +254,8 @@ export function useWebRTC() {
 
     (async () => {
       try {
+        // Avoid aspectRatio / fixed landscape sizes — on phones those crop the
+        // selfie sensor to a strip (often forehead-only on the other person's screen).
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: { facingMode: "user" },
@@ -396,12 +272,10 @@ export function useWebRTC() {
         setCameraOn(true);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
-          void playMedia(localVideoRef.current, "local video");
         }
       } catch (err) {
         console.error("Failed to access camera/microphone:", err);
         setCameraReady(false);
-        setConnectionError("Camera/microphone permission is required.");
       }
     })();
 
@@ -422,21 +296,8 @@ export function useWebRTC() {
     if (video.srcObject !== stream) {
       video.srcObject = stream;
     }
-    void playMedia(video, "local video");
+    void video.play().catch(() => {});
   });
-
-  // Keep remote video painted after UI swaps (placeholder off → on)
-  useEffect(() => {
-    if (status !== "connected") return;
-    const stream = remoteStreamRef.current;
-    const video = remoteVideoRef.current;
-    if (!stream || !video) return;
-    if (video.srcObject !== stream) {
-      video.srcObject = stream;
-    }
-    video.muted = true;
-    void playMedia(video, "remote video refresh");
-  }, [status]);
 
   const startMatching = useCallback(() => {
     setConnectionError(null);
@@ -444,11 +305,12 @@ export function useWebRTC() {
 
     if (!socketRef.current) {
       const socket = io(getSignalingUrl(), {
+        // Polling first is more reliable behind Render / Cloudflare
         transports: ["polling", "websocket"],
         withCredentials: true,
         reconnection: true,
         reconnectionAttempts: 8,
-        timeout: 20000,
+        timeout: 15000,
       });
       socketRef.current = socket;
       bindSocketEvents(socket);
@@ -460,9 +322,7 @@ export function useWebRTC() {
 
       socket.on("connect_error", (err) => {
         console.error("Signaling connect error:", err.message);
-        setConnectionError(
-          "Could not reach the matchmaking server. Retrying…",
-        );
+        setConnectionError("Could not reach the matchmaking server. Retrying…");
       });
     } else if (socketRef.current.connected) {
       socketRef.current.emit("find-match");
@@ -481,7 +341,6 @@ export function useWebRTC() {
     cleanupPeerConnection();
     clearChat();
     countedConnectionRef.current = false;
-    setConnectionError(null);
     setStatus("waiting");
     socket.emit("next");
   }, [cleanupPeerConnection, clearChat]);
