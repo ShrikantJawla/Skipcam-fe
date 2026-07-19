@@ -16,6 +16,34 @@ function getSignalingUrl() {
   return "http://localhost:5000";
 }
 
+/** Camera shape from screen size only — does not change WebRTC connect logic. */
+function getVideoConstraintsForScreen(): MediaTrackConstraints {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const isMobileScreen = Math.min(width, height) < 768;
+  const isPortrait = height >= width;
+
+  if (isMobileScreen && isPortrait) {
+    return {
+      facingMode: "user",
+      aspectRatio: { ideal: 9 / 16 },
+    };
+  }
+
+  if (isMobileScreen) {
+    return {
+      facingMode: "user",
+      aspectRatio: { ideal: 16 / 9 },
+    };
+  }
+
+  // PC / large screens
+  return {
+    facingMode: "user",
+    aspectRatio: { ideal: 16 / 9 },
+  };
+}
+
 const ICE_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -259,21 +287,19 @@ export function useWebRTC() {
 
     (async () => {
       try {
-        // Aspect ratio only on mobile (portrait). Desktop uses the natural camera.
-        const isMobile =
-          typeof navigator !== "undefined" &&
-          (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-            (navigator.maxTouchPoints > 0 && window.innerWidth < 900));
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: isMobile
-            ? {
-                facingMode: "user",
-                aspectRatio: { ideal: 9 / 16 },
-              }
-            : { facingMode: "user" },
-        });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: getVideoConstraintsForScreen(),
+          });
+        } catch {
+          // If the device rejects aspectRatio ideals, fall back to a plain camera
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: { facingMode: "user" },
+          });
+        }
 
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
