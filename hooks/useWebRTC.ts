@@ -16,7 +16,7 @@ function getSignalingUrl() {
   return "http://localhost:5000";
 }
 
-/** Pick camera shape from the device screen size (not user-agent). */
+/** Pick camera shape from the device screen size. */
 function getVideoConstraintsForScreen(): MediaTrackConstraints {
   const width = window.innerWidth;
   const height = window.innerHeight;
@@ -24,7 +24,6 @@ function getVideoConstraintsForScreen(): MediaTrackConstraints {
   const isPortrait = height >= width;
   const isMobileScreen = shortest < 768;
 
-  // Phone / small screen → match current orientation
   if (isMobileScreen) {
     if (isPortrait) {
       return {
@@ -42,7 +41,6 @@ function getVideoConstraintsForScreen(): MediaTrackConstraints {
     };
   }
 
-  // PC / large screens → landscape desktop aspect
   return {
     facingMode: "user",
     aspectRatio: { ideal: 16 / 9 },
@@ -55,16 +53,7 @@ const ICE_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    // Public free TURN relay — needed when peers are behind strict NATs
-    {
-      urls: [
-        "turn:openrelay.metered.ca:80",
-        "turn:openrelay.metered.ca:443",
-        "turn:openrelay.metered.ca:443?transport=tcp",
-      ],
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
+    { urls: "stun:stun.cloudflare.com:3478" },
   ],
 };
 
@@ -89,6 +78,7 @@ function makeMessage(text: string, from: ChatMessage["from"]): ChatMessage {
 export function useWebRTC() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [status, setStatus] = useState<MatchStatus>("idle");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -105,34 +95,82 @@ export function useWebRTC() {
   const socketRef = useRef<Socket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const countedConnectionRef = useRef(false);
   const onConnectedRef = useRef<(() => void) | null>(null);
+  const isInitiatorRef = useRef(false);
 
   const clearChat = useCallback(() => {
     setMessages([]);
+  }, []);
+
+  const bindRemoteMedia = useCallback((stream: MediaStream) => {
+    remoteStreamRef.current = stream;
+
+    const video = remoteVideoRef.current;
+    if (video) {
+      if (video.srcObject !== stream) {
+        video.srcObject = stream;
+      }
+      // Must stay muted for mobile autoplay or the element stays blank
+      video.muted = true;
+      video.autoplay = true;
+      video.playsInline = true;
+      void video.play().catch(() => {});
+    }
+
+    if (stream.getAudioTracks().length > 0) {
+      if (!remoteAudioRef.current) {
+        remoteAudioRef.current = new Audio();
+        remoteAudioRef.current.autoplay = true;
+      }
+      const audio = remoteAudioRef.current;
+      if (audio.srcObject !== stream) {
+        audio.srcObject = stream;
+      }
+      audio.muted = false;
+      void audio.play().catch(() => {});
+    }
   }, []);
 
   const cleanupPeerConnection = useCallback(() => {
     pcRef.current?.close();
     pcRef.current = null;
     pendingCandidatesRef.current = [];
+    remoteStreamRef.current = null;
+    isInitiatorRef.current = false;
+
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
+    }
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.pause();
+      remoteAudioRef.current.srcObject = null;
+      remoteAudioRef.current = null;
     }
   }, []);
 
   const addLocalTracks = useCallback((pc: RTCPeerConnection) => {
     const stream = localStreamRef.current;
-    if (!stream || pc.getSenders().some((s) => s.track)) return;
+    if (!stream) return;
+
+    const senderIds = new Set(
+      pc
+        .getSenders()
+        .map((s) => s.track?.id)
+        .filter(Boolean),
+    );
+
     for (const track of stream.getTracks()) {
-      pc.addTrack(track, stream);
+      if (!senderIds.has(track.id)) {
+        pc.addTrack(track, stream);
+      }
     }
   }, []);
 
   const flushPendingCandidates = useCallback(async (pc: RTCPeerConnection) => {
-    const pending = pendingCandidatesRef.current;
-    pendingCandidatesRef.current = [];
+    const pending = pendingCandidatesRef.current.splice(0);
     for (const candidate of pending) {
       try {
         await pc.addIceCandidate(candidate);
@@ -142,9 +180,12 @@ export function useWebRTC() {
     }
   }, []);
 
-  const createPeerConnection = useCallback(
+  const ensurePeerConnection = useCallback(
     (socket: Socket) => {
-      cleanupPeerConnection();
+      const existing = pcRef.current;
+      if (existing && existing.signalingState !== "closed") {
+        return existing;
+      }
 
       const pc = new RTCPeerConnection(ICE_CONFIG);
       pcRef.current = pc;
@@ -157,16 +198,19 @@ export function useWebRTC() {
 
       pc.ontrack = (event) => {
         const stream =
-          event.streams[0] ?? new MediaStream([event.track]);
-        const video = remoteVideoRef.current;
-        if (video) {
-          video.srcObject = stream;
-          // Keep muted so mobile autoplay still shows frames
-          video.muted = true;
-          video.playsInline = true;
-          void video.play().catch(() => {});
+          event.streams[0] ??
+          remoteStreamRef.current ??
+          new MediaStream();
+
+        if (!event.streams[0]) {
+          const has = stream.getTracks().some((t) => t.id === event.track.id);
+          if (!has) stream.addTrack(event.track);
         }
+
+        bindRemoteMedia(stream);
         setStatus("connected");
+        setConnectionError(null);
+
         if (!countedConnectionRef.current) {
           countedConnectionRef.current = true;
           setMatchFlash(true);
@@ -175,9 +219,15 @@ export function useWebRTC() {
         }
       };
 
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === "failed") {
+          setConnectionError("Video link failed. Tap Next to retry.");
+        }
+      };
+
       return pc;
     },
-    [cleanupPeerConnection],
+    [bindRemoteMedia],
   );
 
   const bindSocketEvents = useCallback(
@@ -200,17 +250,22 @@ export function useWebRTC() {
         countedConnectionRef.current = false;
         setConnectionError(null);
         setStatus("connecting");
-        const pc = createPeerConnection(socket);
+        isInitiatorRef.current = initiator;
 
-        if (initiator) {
-          addLocalTracks(pc);
-          try {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            socket.emit("offer", offer);
-          } catch (err) {
-            console.error("Failed to create offer:", err);
-          }
+        // Important: do NOT wipe a PC that already answered an early offer
+        const pc = ensurePeerConnection(socket);
+        addLocalTracks(pc);
+
+        if (!initiator) return;
+        if (pc.signalingState !== "stable") return;
+
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socket.emit("offer", pc.localDescription);
+        } catch (err) {
+          console.error("Failed to create offer:", err);
+          setConnectionError("Could not start video. Tap Next to retry.");
         }
       });
 
@@ -218,17 +273,23 @@ export function useWebRTC() {
         const socketInstance = socketRef.current;
         if (!socketInstance) return;
 
-        const pc = pcRef.current ?? createPeerConnection(socketInstance);
-
         try {
-          await pc.setRemoteDescription(offer);
+          const pc = ensurePeerConnection(socketInstance);
           addLocalTracks(pc);
+
+          // Already answered / wrong state — ignore duplicate offers
+          if (pc.signalingState !== "stable" && pc.signalingState !== "have-remote-offer") {
+            return;
+          }
+
+          await pc.setRemoteDescription(offer);
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
-          socketInstance.emit("answer", answer);
+          socketInstance.emit("answer", pc.localDescription);
           await flushPendingCandidates(pc);
         } catch (err) {
           console.error("Failed to handle offer:", err);
+          setConnectionError("Could not answer video. Tap Next to retry.");
         }
       });
 
@@ -237,6 +298,7 @@ export function useWebRTC() {
         if (!pc) return;
 
         try {
+          if (pc.signalingState !== "have-local-offer") return;
           await pc.setRemoteDescription(answer);
           await flushPendingCandidates(pc);
         } catch (err) {
@@ -285,7 +347,7 @@ export function useWebRTC() {
       addLocalTracks,
       cleanupPeerConnection,
       clearChat,
-      createPeerConnection,
+      ensurePeerConnection,
       flushPendingCandidates,
     ],
   );
@@ -302,7 +364,6 @@ export function useWebRTC() {
             video: getVideoConstraintsForScreen(),
           });
         } catch {
-          // Fallback if the device rejects ideal width/height/aspectRatio
           stream = await navigator.mediaDevices.getUserMedia({
             audio: true,
             video: { facingMode: "user" },
@@ -348,18 +409,23 @@ export function useWebRTC() {
     void video.play().catch(() => {});
   });
 
+  // Re-bind remote media after UI shows the video element (placeholder off)
+  useEffect(() => {
+    if (status !== "connected" || !remoteStreamRef.current) return;
+    bindRemoteMedia(remoteStreamRef.current);
+  }, [status, bindRemoteMedia]);
+
   const startMatching = useCallback(() => {
     setConnectionError(null);
     setStatus("waiting");
 
     if (!socketRef.current) {
       const socket = io(getSignalingUrl(), {
-        // Polling first is more reliable behind Render / Cloudflare
         transports: ["polling", "websocket"],
         withCredentials: true,
         reconnection: true,
         reconnectionAttempts: 8,
-        timeout: 15000,
+        timeout: 20000,
       });
       socketRef.current = socket;
       bindSocketEvents(socket);
@@ -371,9 +437,13 @@ export function useWebRTC() {
 
       socket.on("connect_error", (err) => {
         console.error("Signaling connect error:", err.message);
-        setConnectionError("Could not reach the matchmaking server. Retrying…");
+        setConnectionError(
+          "Could not reach the matchmaking server. Retrying…",
+        );
       });
     } else if (socketRef.current.connected) {
+      // Fresh PC for a new search
+      cleanupPeerConnection();
       socketRef.current.emit("find-match");
     } else {
       socketRef.current.connect();
@@ -381,7 +451,7 @@ export function useWebRTC() {
         socketRef.current?.emit("find-match");
       });
     }
-  }, [bindSocketEvents]);
+  }, [bindSocketEvents, cleanupPeerConnection]);
 
   const nextPartner = useCallback(() => {
     const socket = socketRef.current;
@@ -390,6 +460,7 @@ export function useWebRTC() {
     cleanupPeerConnection();
     clearChat();
     countedConnectionRef.current = false;
+    setConnectionError(null);
     setStatus("waiting");
     socket.emit("next");
   }, [cleanupPeerConnection, clearChat]);
