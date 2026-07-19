@@ -82,6 +82,7 @@ export function useWebRTC() {
   const socketRef = useRef<Socket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const countedConnectionRef = useRef(false);
   const onConnectedRef = useRef<(() => void) | null>(null);
@@ -94,6 +95,7 @@ export function useWebRTC() {
     pcRef.current?.close();
     pcRef.current = null;
     pendingCandidatesRef.current = [];
+    remoteStreamRef.current = null;
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
@@ -134,6 +136,7 @@ export function useWebRTC() {
 
       pc.ontrack = (event) => {
         const stream = event.streams[0] ?? new MediaStream([event.track]);
+        remoteStreamRef.current = stream;
         const video = remoteVideoRef.current;
         if (video) {
           video.srcObject = stream;
@@ -313,14 +316,23 @@ export function useWebRTC() {
     };
   }, [cleanupPeerConnection]);
 
+  // Keep <video> elements attached if they remount (preview ↔ PIP / connect).
   useEffect(() => {
-    const video = localVideoRef.current;
-    const stream = localStreamRef.current;
-    if (!video || !stream) return;
-    if (video.srcObject !== stream) {
-      video.srcObject = stream;
+    const localVideo = localVideoRef.current;
+    const localStream = localStreamRef.current;
+    if (localVideo && localStream && localVideo.srcObject !== localStream) {
+      localVideo.srcObject = localStream;
+      void localVideo.play().catch(() => {});
     }
-    void video.play().catch(() => {});
+
+    const remoteVideo = remoteVideoRef.current;
+    const remoteStream = remoteStreamRef.current;
+    if (remoteVideo && remoteStream && remoteVideo.srcObject !== remoteStream) {
+      remoteVideo.srcObject = remoteStream;
+      remoteVideo.muted = true;
+      remoteVideo.playsInline = true;
+      void remoteVideo.play().catch(() => {});
+    }
   });
 
   const startMatching = useCallback(() => {

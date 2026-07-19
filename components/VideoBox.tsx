@@ -58,7 +58,7 @@ export default function VideoBox({
 
       {label && !placeholder && (
         <span
-          className={`absolute bottom-2 left-2 z-[1] text-xs font-medium text-white ${labelClassName}`}
+          className={`absolute bottom-2 left-2 z-1 text-xs font-medium text-white ${labelClassName}`}
         >
           {label}
         </span>

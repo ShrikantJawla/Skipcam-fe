@@ -273,7 +273,7 @@ export default function ChatPage() {
               cameraOn={cameraOn}
               overlay={
                 status !== "connected" ? (
-                  <div className="absolute inset-0 z-20">
+                  <div className="absolute inset-0 z-20 bg-linear-to-b from-black/55 via-black/25 to-black/60">
                     <WaitingScene
                       waiting={
                         status === "waiting" || status === "connecting"
