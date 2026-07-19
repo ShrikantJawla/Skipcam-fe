@@ -16,6 +16,41 @@ function getSignalingUrl() {
   return "http://localhost:5000";
 }
 
+/** Pick camera shape from the device screen size (not user-agent). */
+function getVideoConstraintsForScreen(): MediaTrackConstraints {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const shortest = Math.min(width, height);
+  const isPortrait = height >= width;
+  const isMobileScreen = shortest < 768;
+
+  // Phone / small screen → match current orientation
+  if (isMobileScreen) {
+    if (isPortrait) {
+      return {
+        facingMode: "user",
+        aspectRatio: { ideal: 9 / 16 },
+        width: { ideal: 720 },
+        height: { ideal: 1280 },
+      };
+    }
+    return {
+      facingMode: "user",
+      aspectRatio: { ideal: 16 / 9 },
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+    };
+  }
+
+  // PC / large screens → landscape desktop aspect
+  return {
+    facingMode: "user",
+    aspectRatio: { ideal: 16 / 9 },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  };
+}
+
 const ICE_CONFIG: RTCConfiguration = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -260,21 +295,19 @@ export function useWebRTC() {
 
     (async () => {
       try {
-        // Aspect ratio only on mobile (portrait). Desktop uses the natural camera.
-        const isMobile =
-          typeof navigator !== "undefined" &&
-          (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-            (navigator.maxTouchPoints > 0 && window.innerWidth < 900));
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: isMobile
-            ? {
-                facingMode: "user",
-                aspectRatio: { ideal: 9 / 16 },
-              }
-            : { facingMode: "user" },
-        });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: getVideoConstraintsForScreen(),
+          });
+        } catch {
+          // Fallback if the device rejects ideal width/height/aspectRatio
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: { facingMode: "user" },
+          });
+        }
 
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
@@ -287,6 +320,7 @@ export function useWebRTC() {
         setCameraOn(true);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
+          void localVideoRef.current.play().catch(() => {});
         }
       } catch (err) {
         console.error("Failed to access camera/microphone:", err);
