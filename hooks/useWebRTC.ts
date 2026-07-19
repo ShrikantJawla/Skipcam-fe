@@ -70,9 +70,35 @@ export function useWebRTC() {
   const socketRef = useRef<Socket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const countedConnectionRef = useRef(false);
   const onConnectedRef = useRef<(() => void) | null>(null);
+
+  const attachRemoteStream = useCallback((stream: MediaStream) => {
+    remoteStreamRef.current = stream;
+    const video = remoteVideoRef.current;
+    if (!video) return;
+
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+
+    // Mobile autoplay policy: must start muted, then unmute for audio
+    video.playsInline = true;
+    const preferUnmuted = true;
+    video.muted = true;
+    void video
+      .play()
+      .then(() => {
+        if (preferUnmuted) video.muted = false;
+      })
+      .catch(() => {
+        // Keep muted so frames still render if unmute is blocked
+        video.muted = true;
+        void video.play().catch(() => {});
+      });
+  }, []);
 
   const clearChat = useCallback(() => {
     setMessages([]);
@@ -82,6 +108,7 @@ export function useWebRTC() {
     pcRef.current?.close();
     pcRef.current = null;
     pendingCandidatesRef.current = [];
+    remoteStreamRef.current = null;
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
@@ -89,7 +116,9 @@ export function useWebRTC() {
 
   const addLocalTracks = useCallback((pc: RTCPeerConnection) => {
     const stream = localStreamRef.current;
-    if (!stream || pc.getSenders().some((s) => s.track)) return;
+    if (!stream) return;
+    if (pc.getSenders().some((s) => s.track)) return;
+
     for (const track of stream.getTracks()) {
       pc.addTrack(track, stream);
     }
@@ -123,20 +152,7 @@ export function useWebRTC() {
       pc.ontrack = (event) => {
         const stream =
           event.streams[0] ?? new MediaStream([event.track]);
-        const video = remoteVideoRef.current;
-        if (video) {
-          video.srcObject = stream;
-          // Mobile browsers block autoplay of unmuted video → black screen.
-          // Play muted first, then restore audio.
-          const wasMuted = video.muted;
-          video.muted = true;
-          void video
-            .play()
-            .catch(() => {})
-            .finally(() => {
-              video.muted = wasMuted;
-            });
-        }
+        attachRemoteStream(stream);
         setStatus("connected");
         if (!countedConnectionRef.current) {
           countedConnectionRef.current = true;
@@ -148,7 +164,7 @@ export function useWebRTC() {
 
       return pc;
     },
-    [cleanupPeerConnection],
+    [attachRemoteStream, cleanupPeerConnection],
   );
 
   const bindSocketEvents = useCallback(
@@ -311,6 +327,12 @@ export function useWebRTC() {
     }
     void video.play().catch(() => {});
   });
+
+  // Re-bind remote stream after UI status changes (placeholder toggle, remounts)
+  useEffect(() => {
+    if (status !== "connected" || !remoteStreamRef.current) return;
+    attachRemoteStream(remoteStreamRef.current);
+  }, [status, attachRemoteStream]);
 
   const startMatching = useCallback(() => {
     setConnectionError(null);
