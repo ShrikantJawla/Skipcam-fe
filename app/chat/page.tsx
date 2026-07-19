@@ -284,7 +284,7 @@ export default function ChatPage() {
                   className="rounded-none border-0 bg-black"
                   style={{
                     aspectRatio: "4 / 3",
-                    width: "min(100cqw, 960px, calc(100cqh * 16 / 9))",
+                    // width: "min(100cqw, 960px, calc(100cqh * 16 / 9))",
                     height: "auto",
                   }}
                   labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
