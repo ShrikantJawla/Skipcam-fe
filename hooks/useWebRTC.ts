@@ -23,8 +23,9 @@ function getSignalingUrl() {
 function getVideoConstraints(): MediaTrackConstraints {
   return {
     facingMode: "user",
-    width: { ideal: 960 },
-    height: { ideal: 540 },
+    // width: { ideal: 960 },
+    // height: { ideal: 540 },
+    aspectRatio:{ideal: 4 / 3}
   };
 }
 
