@@ -26,14 +26,16 @@ export default function VideoBox({
   videoClassName = "",
   labelClassName = "",
 }: VideoBoxProps) {
-  // Cover fills the stage (no black bars). Center keeps faces in frame across orientations.
+  // Always center the stream. Cover fills the frame; contain letterboxes if needed.
   const fitClass =
     fit === "contain"
       ? "object-contain object-center"
       : "object-cover object-center";
 
   return (
-    <div className={`relative overflow-hidden bg-stage ${className}`}>
+    <div
+      className={`relative flex items-center justify-center overflow-hidden bg-stage ${className}`}
+    >
       <video
         ref={videoRef}
         autoPlay

@@ -7,6 +7,7 @@ import DraggablePip from "@/components/DraggablePip";
 import MatchFlash from "@/components/MatchFlash";
 import OnboardingOverlay from "@/components/OnboardingOverlay";
 import ReactionBurst, { ReactionBar } from "@/components/ReactionBurst";
+import ScreenAspectFrame from "@/components/ScreenAspectFrame";
 import VideoBox from "@/components/VideoBox";
 import WaitingScene from "@/components/WaitingScene";
 import { useWebRTC } from "@/hooks/useWebRTC";
@@ -269,20 +270,22 @@ export default function ChatPage() {
           <div className="flex min-h-0 flex-col gap-1.5 sm:gap-2">
             <section className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-ink/10 bg-stage shadow-[0_20px_50px_-24px_rgba(15,23,42,0.55)] sm:rounded-2xl">
               <div
-                className={`absolute inset-0 overflow-hidden rounded-xl sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
+                className={`absolute inset-0 overflow-hidden rounded-xl bg-stage sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
               >
-                <VideoBox
-                  videoRef={remoteVideoRef}
-                  label="Stranger"
-                  fit="contain"
-                  muted
-                  placeholder={status !== "connected"}
-                  placeholderContent={
-                    <div className="h-full w-full bg-stage" />
-                  }
-                  className="absolute inset-0 rounded-none border-0 bg-stage"
-                  labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
-                />
+                <ScreenAspectFrame>
+                  <VideoBox
+                    videoRef={remoteVideoRef}
+                    label="Stranger"
+                    fit="cover"
+                    muted
+                    placeholder={status !== "connected"}
+                    placeholderContent={
+                      <div className="h-full w-full bg-stage" />
+                    }
+                    className="h-full w-full rounded-none border-0 bg-stage"
+                    labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
+                  />
+                </ScreenAspectFrame>
               </div>
 
               {status !== "connected" && (
@@ -323,7 +326,8 @@ export default function ChatPage() {
                     videoRef={localVideoRef}
                     muted
                     label="You"
-                    className="h-14 w-24 sm:h-24 sm:w-40 md:h-28 md:w-48"
+                    fit="cover"
+                    className="aspect-video h-16 w-auto max-[767px]:portrait:aspect-9/16 max-[767px]:portrait:h-20 sm:h-24 md:h-28"
                     videoClassName="pointer-events-none -scale-x-100"
                     labelClassName="bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 text-[9px] backdrop-blur-sm sm:bottom-1.5 sm:left-1.5 sm:text-[10px]"
                   />
