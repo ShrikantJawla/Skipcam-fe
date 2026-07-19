@@ -8,7 +8,7 @@ interface VideoBoxProps {
   label?: string;
   placeholder?: boolean;
   placeholderContent?: ReactNode;
-  /** cover crops to fill; contain keeps the full face visible across aspect ratios */
+  /** cover = fill tile (WhatsApp/Zoom); contain = letterbox */
   fit?: "cover" | "contain";
   className?: string;
   videoClassName?: string;
@@ -28,7 +28,6 @@ export default function VideoBox({
   labelClassName = "",
   style,
 }: VideoBoxProps) {
-  // Always center the stream. Cover fills the frame; contain letterboxes if needed.
   const fitClass =
     fit === "contain"
       ? "object-contain object-center"
@@ -36,7 +35,7 @@ export default function VideoBox({
 
   return (
     <div
-      className={`relative flex items-center justify-center overflow-hidden bg-stage ${className}`}
+      className={`relative overflow-hidden bg-black ${className}`}
       style={style}
     >
       <video
@@ -44,13 +43,13 @@ export default function VideoBox({
         autoPlay
         playsInline
         muted={muted}
-        className={`h-full w-full ${fitClass} ${placeholder ? "invisible" : ""} ${videoClassName}`}
+        className={`absolute inset-0 h-full w-full ${fitClass} ${placeholder ? "invisible" : ""} ${videoClassName}`}
       />
 
       {placeholder && (
         <div className="absolute inset-0">
           {placeholderContent ?? (
-            <div className="flex h-full w-full items-center justify-center bg-stage text-sm text-white/50">
+            <div className="flex h-full w-full items-center justify-center bg-black text-sm text-white/50">
               Waiting for stranger...
             </div>
           )}
@@ -59,7 +58,7 @@ export default function VideoBox({
 
       {label && !placeholder && (
         <span
-          className={`absolute bottom-2 left-2 text-xs font-medium text-white ${labelClassName}`}
+          className={`absolute bottom-2 left-2 z-[1] text-xs font-medium text-white ${labelClassName}`}
         >
           {label}
         </span>

@@ -16,17 +16,15 @@ function getSignalingUrl() {
   return "http://localhost:5000";
 }
 
-/** Prefer upright selfie framing (WhatsApp-style). Display uses cover to fill the stage. */
+/**
+ * Natural front camera — same approach as WhatsApp / Zoom / Meet.
+ * Display tiles use object-cover; no forced crop at capture time.
+ */
 function getVideoConstraintsForScreen(): MediaTrackConstraints {
-  const isMobilePortrait =
-    Math.min(window.innerWidth, window.innerHeight) < 768 &&
-    window.innerHeight >= window.innerWidth;
-
   return {
     facingMode: "user",
-    ...(isMobilePortrait
-      ? { aspectRatio: { ideal: 9 / 16 } }
-      : { aspectRatio: { ideal: 16 / 9 } }),
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
   };
 }
 
