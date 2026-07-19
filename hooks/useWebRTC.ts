@@ -18,15 +18,20 @@ function getSignalingUrl() {
 
 /** Prefer upright selfie framing (WhatsApp-style). Display uses cover to fill the stage. */
 function getVideoConstraintsForScreen(): MediaTrackConstraints {
-  const isMobilePortrait =
-    Math.min(window.innerWidth, window.innerHeight) < 768 &&
-    window.innerHeight >= window.innerWidth;
+  // const isMobilePortrait =
+  //   Math.min(window.innerWidth, window.innerHeight) < 768 &&
+  //   window.innerHeight >= window.innerWidth;
 
+  // return {
+  //   facingMode: "user",
+  //   ...(isMobilePortrait
+  //     ? { aspectRatio: { ideal: 9 / 16 } }
+  //     : { aspectRatio: { ideal: 16 / 9 } }),
+  // };
   return {
-    facingMode: "user",
-    ...(isMobilePortrait
-      ? { aspectRatio: { ideal: 9 / 16 } }
-      : { aspectRatio: { ideal: 16 / 9 } }),
+    aspectRatio: { ideal: 4 / 3 },
+    width: { ideal: 4000 },
+    height: { ideal: 3000 },
   };
 }
 
