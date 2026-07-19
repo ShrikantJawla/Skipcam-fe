@@ -121,9 +121,21 @@ export function useWebRTC() {
       };
 
       pc.ontrack = (event) => {
-        const [stream] = event.streams;
-        if (remoteVideoRef.current && stream) {
-          remoteVideoRef.current.srcObject = stream;
+        const stream =
+          event.streams[0] ?? new MediaStream([event.track]);
+        const video = remoteVideoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          // Mobile browsers block autoplay of unmuted video → black screen.
+          // Play muted first, then restore audio.
+          const wasMuted = video.muted;
+          video.muted = true;
+          void video
+            .play()
+            .catch(() => {})
+            .finally(() => {
+              video.muted = wasMuted;
+            });
         }
         setStatus("connected");
         if (!countedConnectionRef.current) {
@@ -272,6 +284,7 @@ export function useWebRTC() {
         setCameraOn(true);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
+          void localVideoRef.current.play().catch(() => {});
         }
       } catch (err) {
         console.error("Failed to access camera/microphone:", err);

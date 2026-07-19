@@ -38,8 +38,7 @@ export default function VideoBox({
         autoPlay
         playsInline
         muted={muted}
-        // Absolute fill so object-cover always paints the full stage on mobile
-        className={`absolute inset-0 h-full w-full ${fitClass} ${placeholder ? "invisible" : ""} ${videoClassName}`}
+        className={`block h-full w-full ${fitClass} ${placeholder ? "invisible" : ""} ${videoClassName}`}
       />
 
       {placeholder && (

@@ -396,21 +396,10 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {/* Mobile controls — overlaid on the video */}
+              {/* Mobile controls — overlaid on the video (chat stays desktop-only so it doesn't cover video) */}
               <div className="absolute inset-x-0 bottom-0 z-30 flex items-center justify-between gap-2 bg-gradient-to-t from-ink/80 via-ink/40 to-transparent px-3 pt-10 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
                 {controls}
               </div>
-
-              {/* Mobile chat sheet */}
-              {chatEnabled && (
-                <div className="absolute inset-x-2 bottom-[4.5rem] z-40 h-[28vh] overflow-hidden rounded-xl shadow-lg lg:hidden">
-                  <ChatPanel
-                    messages={messages}
-                    enabled={chatEnabled}
-                    onSend={sendMessage}
-                  />
-                </div>
-              )}
             </section>
 
             {/* Desktop controls under the stage */}
