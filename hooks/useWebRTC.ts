@@ -121,9 +121,15 @@ export function useWebRTC() {
       };
 
       pc.ontrack = (event) => {
-        const [stream] = event.streams;
-        if (remoteVideoRef.current && stream) {
-          remoteVideoRef.current.srcObject = stream;
+        const stream =
+          event.streams[0] ?? new MediaStream([event.track]);
+        const video = remoteVideoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          // Keep muted so mobile autoplay still shows frames
+          video.muted = true;
+          video.playsInline = true;
+          void video.play().catch(() => {});
         }
         setStatus("connected");
         if (!countedConnectionRef.current) {
@@ -254,11 +260,20 @@ export function useWebRTC() {
 
     (async () => {
       try {
-        // Avoid aspectRatio / fixed landscape sizes — on phones those crop the
-        // selfie sensor to a strip (often forehead-only on the other person's screen).
+        // Aspect ratio only on mobile (portrait). Desktop uses the natural camera.
+        const isMobile =
+          typeof navigator !== "undefined" &&
+          (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+            (navigator.maxTouchPoints > 0 && window.innerWidth < 900));
+
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
-          video: { facingMode: "user" },
+          video: isMobile
+            ? {
+                facingMode: "user",
+                aspectRatio: { ideal: 9 / 16 },
+              }
+            : { facingMode: "user" },
         });
 
         if (cancelled) {
