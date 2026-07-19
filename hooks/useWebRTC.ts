@@ -282,8 +282,17 @@ export function useWebRTC() {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: getVideoConstraintsForScreen(),
+            video: true,
           });
+          const videoStream = stream.getVideoTracks()[0];
+          const constraints = videoStream.getConstraints();
+          await videoStream.applyConstraints({
+            aspectRatio: constraints.aspectRatio,
+            width: constraints.width,
+            height: constraints.height,
+          });
+          console.log("---->", videoStream.getCapabilities());
+          console.log("---->", videoStream.getConstraints());
         } catch {
           // If the device rejects aspectRatio ideals, fall back to a plain camera
           stream = await navigator.mediaDevices.getUserMedia({
