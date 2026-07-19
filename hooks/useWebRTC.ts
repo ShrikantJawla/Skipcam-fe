@@ -254,14 +254,11 @@ export function useWebRTC() {
 
     (async () => {
       try {
+        // Avoid aspectRatio / fixed landscape sizes — on phones those crop the
+        // selfie sensor to a strip (often forehead-only on the other person's screen).
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
-          video: {
-            facingMode: "user",
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            aspectRatio: { ideal: 16 / 9 },
-          },
+          video: { facingMode: "user" },
         });
 
         if (cancelled) {

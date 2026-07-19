@@ -26,7 +26,11 @@ export default function VideoBox({
   videoClassName = "",
   labelClassName = "",
 }: VideoBoxProps) {
-  const fitClass = fit === "contain" ? "object-contain" : "object-cover object-center";
+  // Cover fills the stage (no black bars). Center keeps faces in frame across orientations.
+  const fitClass =
+    fit === "contain"
+      ? "object-contain object-center"
+      : "object-cover object-center";
 
   return (
     <div className={`relative overflow-hidden bg-stage ${className}`}>
