@@ -3,13 +3,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 
-const SIGNALING_URL = "http://localhost:5000";
+function getSignalingUrl() {
+  if (process.env.NEXT_PUBLIC_SIGNALING_URL) {
+    return process.env.NEXT_PUBLIC_SIGNALING_URL;
+  }
+  if (
+    typeof window !== "undefined" &&
+    !["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ) {
+    return "https://skipcam-be.onrender.com";
+  }
+  return "http://localhost:5000";
+}
 
 const ICE_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    // Public free TURN relay — needed when peers are behind strict NATs
+    {
+      urls: [
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+      ],
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ],
 };
 
-export type MatchStatus = "idle" | "waiting" | "connected";
+export type MatchStatus = "idle" | "waiting" | "connecting" | "connected";
 
 export type ChatMessage = {
   id: string;
@@ -18,10 +42,7 @@ export type ChatMessage = {
   at: number;
 };
 
-function makeMessage(
-  text: string,
-  from: ChatMessage["from"],
-): ChatMessage {
+function makeMessage(text: string, from: ChatMessage["from"]): ChatMessage {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     text,
@@ -40,6 +61,7 @@ export function useWebRTC() {
   const [micOn, setMicOn] = useState(true);
   const [cameraOn, setCameraOn] = useState(true);
   const [cameraReady, setCameraReady] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [incomingReaction, setIncomingReaction] = useState<{
     id: string;
     emoji: string;
@@ -135,6 +157,8 @@ export function useWebRTC() {
       socket.on("matched", async ({ initiator }: { initiator: boolean }) => {
         clearChat();
         countedConnectionRef.current = false;
+        setConnectionError(null);
+        setStatus("connecting");
         const pc = createPeerConnection(socket);
 
         if (initiator) {
@@ -274,12 +298,31 @@ export function useWebRTC() {
   });
 
   const startMatching = useCallback(() => {
+    setConnectionError(null);
+    setStatus("waiting");
+
     if (!socketRef.current) {
-      const socket = io(SIGNALING_URL);
+      const socket = io(getSignalingUrl(), {
+        // Polling first is more reliable behind Render / Cloudflare
+        transports: ["polling", "websocket"],
+        withCredentials: true,
+        reconnection: true,
+        reconnectionAttempts: 8,
+        timeout: 15000,
+      });
       socketRef.current = socket;
       bindSocketEvents(socket);
+
       socket.on("connect", () => {
+        setConnectionError(null);
         socket.emit("find-match");
+      });
+
+      socket.on("connect_error", (err) => {
+        console.error("Signaling connect error:", err.message);
+        setConnectionError(
+          "Could not reach the matchmaking server. Retrying…",
+        );
       });
     } else if (socketRef.current.connected) {
       socketRef.current.emit("find-match");
@@ -289,8 +332,6 @@ export function useWebRTC() {
         socketRef.current?.emit("find-match");
       });
     }
-
-    setStatus("waiting");
   }, [bindSocketEvents]);
 
   const nextPartner = useCallback(() => {
@@ -354,6 +395,7 @@ export function useWebRTC() {
     micOn,
     cameraOn,
     cameraReady,
+    connectionError,
     startMatching,
     nextPartner,
     sendMessage,

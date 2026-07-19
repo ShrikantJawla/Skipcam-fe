@@ -1,12 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import ChatPanel from "@/components/ChatPanel";
 import DraggablePip from "@/components/DraggablePip";
 import MatchFlash from "@/components/MatchFlash";
@@ -24,20 +19,19 @@ import {
   type ReactionEmoji,
 } from "@/lib/delight";
 import { getMoments, recordMoment, type MomentsStats } from "@/lib/moments";
-import {
-  completeOnboarding,
-  hasCompletedOnboarding,
-} from "@/lib/onboarding";
+import { completeOnboarding, hasCompletedOnboarding } from "@/lib/onboarding";
 
 const STATUS_COPY = {
   idle: "Camera ready",
   waiting: "Searching…",
+  connecting: "Connecting…",
   connected: "In session",
 } as const;
 
 const STATUS_HINT = {
   idle: "Start matching when you’re ready.",
   waiting: "Stay on this page — a partner will join soon.",
+  connecting: "Matched — setting up your private video line.",
   connected: "Mute, hide camera, chat, or skip anytime.",
 } as const;
 
@@ -51,7 +45,7 @@ function StatusDot({ status }: { status: keyof typeof STATUS_COPY }) {
   const color =
     status === "connected"
       ? "bg-emerald-400"
-      : status === "waiting"
+      : status === "waiting" || status === "connecting"
         ? "bg-amber-300 animate-status-pulse"
         : "bg-white/35";
 
@@ -101,6 +95,7 @@ export default function ChatPage() {
     micOn,
     cameraOn,
     cameraReady,
+    connectionError,
     startMatching,
     nextPartner,
     sendMessage,
@@ -154,7 +149,11 @@ export default function ChatPage() {
   }, [status]);
 
   useEffect(() => {
-    if (status !== "waiting") return;
+    if (connectionError) setToast(connectionError);
+  }, [connectionError]);
+
+  useEffect(() => {
+    if (status !== "waiting" && status !== "connecting") return;
     const tipTimer = window.setInterval(() => {
       setTipIndex((i) => (i + 1) % WAITING_TIPS.length);
     }, 4800);
@@ -213,7 +212,10 @@ export default function ChatPage() {
     <main className="session-shell relative flex h-dvh max-h-dvh flex-col overflow-hidden text-ink">
       <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-3 lg:px-6">
         <header className="mb-1.5 flex shrink-0 items-center justify-between gap-2 sm:mb-2.5 sm:gap-3">
-          <Link href="/" className="group flex min-w-0 items-center gap-2 sm:gap-2.5">
+          <Link
+            href="/"
+            className="group flex min-w-0 items-center gap-2 sm:gap-2.5"
+          >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-signal font-display text-xs font-bold text-white shadow-sm transition group-hover:bg-signal-deep sm:h-9 sm:w-9 sm:rounded-xl sm:text-sm">
               Z
             </span>
@@ -243,7 +245,7 @@ export default function ChatPage() {
               <span className="sm:hidden">
                 {status === "connected"
                   ? "Live"
-                  : status === "waiting"
+                  : status === "waiting" || status === "connecting"
                     ? "Wait"
                     : "Ready"}
               </span>
@@ -284,24 +286,28 @@ export default function ChatPage() {
               {status !== "connected" && (
                 <div className="absolute inset-0 z-20 rounded-xl sm:rounded-2xl">
                   <WaitingScene
-                    waiting={status === "waiting"}
+                    waiting={status === "waiting" || status === "connecting"}
                     title={
-                      status === "waiting" ? "Finding someone" : BRAND.name
+                      status === "connecting"
+                        ? "Connecting"
+                        : status === "waiting"
+                          ? "Finding someone"
+                          : BRAND.name
                     }
                     subtitle={
-                      status === "waiting"
-                        ? "Stay here — a partner will join as soon as someone’s ready."
-                        : cameraReady
-                          ? "Your camera is live. Connect when you’re ready."
-                          : "Allow camera access to begin."
+                      status === "connecting"
+                        ? "Matched — opening your private video line…"
+                        : status === "waiting"
+                          ? "Stay here — a partner will join as soon as someone’s ready."
+                          : cameraReady
+                            ? "Your camera is live. Connect when you’re ready."
+                            : "Allow camera access to begin."
                     }
                     queueLine={
-                      status === "waiting"
-                        ? QUEUE_LINES[queueIndex]
-                        : undefined
+                      status === "waiting" ? QUEUE_LINES[queueIndex] : undefined
                     }
                     tip={
-                      status === "waiting"
+                      status === "waiting" || status === "connecting"
                         ? WAITING_TIPS[tipIndex]
                         : undefined
                     }
@@ -389,7 +395,9 @@ export default function ChatPage() {
                   </button>
                 )}
 
-                {(status === "waiting" || status === "connected") && (
+                {(status === "waiting" ||
+                  status === "connecting" ||
+                  status === "connected") && (
                   <button
                     type="button"
                     onClick={nextPartner}
@@ -423,7 +431,13 @@ export default function ChatPage() {
 
 function MicIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3Z" />
       <path d="M19 11a7 7 0 0 1-14 0" />
       <path d="M12 18v3" />
@@ -433,7 +447,13 @@ function MicIcon() {
 
 function MicOffIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="m2 2 20 20" />
       <path d="M12 3a3 3 0 0 1 3 3v3" />
       <path d="M9 9v3a3 3 0 0 0 5.1 2.1" />
@@ -445,7 +465,13 @@ function MicOffIcon() {
 
 function CamIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <rect x="3" y="7" width="13" height="10" rx="2" />
       <path d="m16 10 5-3v10l-5-3" />
     </svg>
@@ -454,7 +480,13 @@ function CamIcon() {
 
 function CamOffIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="m2 2 20 20" />
       <path d="M7 7H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h9" />
       <path d="m16 12 5-3v7.5" />
@@ -464,7 +496,13 @@ function CamOffIcon() {
 
 function FlagIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="M5 21V4" />
       <path d="M5 4h11l-1.5 3.5L16 11H5" />
     </svg>
