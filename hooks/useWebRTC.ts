@@ -16,32 +16,29 @@ function getSignalingUrl() {
   return "http://localhost:5000";
 }
 
-/** Camera shape from screen size only — does not change WebRTC connect logic. */
+/** Prefer vertical (9:16). Does not change WebRTC connect logic. */
 function getVideoConstraintsForScreen(): MediaTrackConstraints {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  const isMobileScreen = Math.min(width, height) < 768;
-  const isPortrait = height >= width;
-
-  if (isMobileScreen && isPortrait) {
-    return {
-      facingMode: "user",
-      aspectRatio: { ideal: 9 / 16 },
-    };
-  }
-
-  if (isMobileScreen) {
-    return {
-      facingMode: "user",
-      aspectRatio: { ideal: 16 / 9 },
-    };
-  }
-
-  // PC / large screens
   return {
     facingMode: "user",
-    aspectRatio: { ideal: 16 / 9 },
+    aspectRatio: { ideal: 9 / 16 },
+    width: { ideal: 720 },
+    height: { ideal: 1280 },
   };
+}
+
+/** Pull camera zoom to minimum when the device supports it (wider / zoomed-out view). */
+async function applyZoomOut(track: MediaStreamTrack) {
+  const caps = track.getCapabilities?.() as
+    | (MediaTrackCapabilities & { zoom?: { min: number; max: number } })
+    | undefined;
+  if (!caps?.zoom) return;
+  try {
+    await track.applyConstraints({
+      advanced: [{ zoom: caps.zoom.min } as MediaTrackConstraintSet],
+    });
+  } catch {
+    // Device may advertise zoom but reject applyConstraints — ignore.
+  }
 }
 
 const ICE_CONFIG: RTCConfiguration = {
@@ -304,6 +301,11 @@ export function useWebRTC() {
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
           return;
+        }
+
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          await applyZoomOut(videoTrack);
         }
 
         localStreamRef.current = stream;

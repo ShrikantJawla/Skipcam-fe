@@ -9,20 +9,30 @@ interface StreamAspectFrameProps {
   children: ReactNode;
   className?: string;
   fallbackAspect?: number;
+  /** Force a display aspect (e.g. 9/16 for vertical). */
+  forceAspect?: number;
+  /**
+   * How much of the stage the frame uses (0–1).
+   * Lower = more zoomed out / more padding around the video.
+   */
+  frameScale?: number;
 }
 
 /**
- * Centers a frame sized to the stream’s real aspect ratio so remote shows the
- * same framing/distance as the sender’s local preview — not the viewer’s screen.
+ * Centers a frame for the stream. Defaults to the stream’s real aspect ratio;
+ * can force vertical and shrink the frame for a zoomed-out look.
  */
 export default function StreamAspectFrame({
   videoRef,
   children,
   className = "",
-  fallbackAspect = 16 / 9,
+  fallbackAspect = 9 / 16,
+  forceAspect,
+  frameScale = 0.88,
 }: StreamAspectFrameProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const aspectRatio = useStreamAspectRatio(videoRef, fallbackAspect);
+  const streamAspect = useStreamAspectRatio(videoRef, fallbackAspect);
+  const aspectRatio = forceAspect ?? streamAspect;
   const [size, setSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
@@ -30,8 +40,8 @@ export default function StreamAspectFrame({
     if (!el) return;
 
     const update = () => {
-      const pw = el.clientWidth;
-      const ph = el.clientHeight;
+      const pw = el.clientWidth * frameScale;
+      const ph = el.clientHeight * frameScale;
       if (pw <= 0 || ph <= 0) return;
 
       let width = pw;
@@ -47,7 +57,7 @@ export default function StreamAspectFrame({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [aspectRatio]);
+  }, [aspectRatio, frameScale]);
 
   return (
     <div

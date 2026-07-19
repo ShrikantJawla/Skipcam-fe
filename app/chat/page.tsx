@@ -10,7 +10,6 @@ import ReactionBurst, { ReactionBar } from "@/components/ReactionBurst";
 import StreamAspectFrame from "@/components/StreamAspectFrame";
 import VideoBox from "@/components/VideoBox";
 import WaitingScene from "@/components/WaitingScene";
-import { useStreamAspectRatio } from "@/hooks/useStreamAspectRatio";
 import { useWebRTC } from "@/hooks/useWebRTC";
 import { BRAND } from "@/lib/brand";
 import {
@@ -107,9 +106,6 @@ export default function ChatPage() {
     reportPartner,
     setOnConnected,
   } = useWebRTC();
-
-  // Match local PIP to the camera stream’s real frame (what the partner sees).
-  const localAspect = useStreamAspectRatio(localVideoRef);
 
   const [moments, setMoments] = useState<MomentsStats>({
     total: 0,
@@ -276,7 +272,12 @@ export default function ChatPage() {
               <div
                 className={`absolute inset-0 overflow-hidden rounded-xl bg-stage sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
               >
-                <StreamAspectFrame videoRef={remoteVideoRef}>
+                <StreamAspectFrame
+                  videoRef={remoteVideoRef}
+                  forceAspect={9 / 16}
+                  frameScale={0.82}
+                  fallbackAspect={9 / 16}
+                >
                   <VideoBox
                     videoRef={remoteVideoRef}
                     label="Stranger"
@@ -287,6 +288,7 @@ export default function ChatPage() {
                       <div className="h-full w-full bg-stage" />
                     }
                     className="h-full w-full rounded-none border-0 bg-stage"
+                    videoClassName="scale-[0.92]"
                     labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
                   />
                 </StreamAspectFrame>
@@ -331,10 +333,9 @@ export default function ChatPage() {
                     muted
                     label="You"
                     fit="contain"
-                    className="h-20 w-auto sm:h-24 md:h-28"
-                    videoClassName="pointer-events-none -scale-x-100"
+                    className="aspect-9/16 h-20 w-auto sm:h-24 md:h-28"
+                    videoClassName="pointer-events-none origin-center [transform:scaleX(-0.92)_scaleY(0.92)]"
                     labelClassName="bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 text-[9px] backdrop-blur-sm sm:bottom-1.5 sm:left-1.5 sm:text-[10px]"
-                    style={{ aspectRatio: String(localAspect) }}
                   />
                   {!cameraOn && (
                     <div className="absolute inset-0 flex items-center justify-center bg-ink/85 text-[9px] font-semibold tracking-wide text-white/70 sm:text-[10px]">
