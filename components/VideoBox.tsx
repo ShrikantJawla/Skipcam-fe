@@ -38,6 +38,7 @@ export default function VideoBox({
         autoPlay
         playsInline
         muted={muted}
+        // Never use visibility:hidden for live streams — some browsers stop decoding.
         className={`absolute inset-0 h-full w-full ${fitClass} ${placeholder ? "opacity-0" : "opacity-100"} ${videoClassName}`}
       />
 
