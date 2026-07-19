@@ -276,7 +276,6 @@ export default function ChatPage() {
                   videoRef={remoteVideoRef}
                   label="Stranger"
                   fit="contain"
-                  muted
                   placeholder={status !== "connected"}
                   placeholderContent={
                     <div className="h-full w-full bg-black" />
