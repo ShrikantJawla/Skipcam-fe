@@ -82,6 +82,9 @@ export function useWebRTC() {
   const socketRef = useRef<Socket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  /** Separate from <video> so video can stay muted for autoplay while voice still plays */
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const countedConnectionRef = useRef(false);
   const onConnectedRef = useRef<(() => void) | null>(null);
@@ -90,12 +93,46 @@ export function useWebRTC() {
     setMessages([]);
   }, []);
 
+  const attachRemoteMedia = useCallback((stream: MediaStream) => {
+    remoteStreamRef.current = stream;
+
+    const video = remoteVideoRef.current;
+    if (video) {
+      // Video-only on the <video> element — keep muted so mobile autoplay works
+      const videoOnly = new MediaStream(stream.getVideoTracks());
+      video.srcObject = videoOnly;
+      video.muted = true;
+      video.playsInline = true;
+      void video.play().catch(() => {});
+    }
+
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length > 0) {
+      if (!remoteAudioRef.current) {
+        const audio = new Audio();
+        audio.autoplay = true;
+        remoteAudioRef.current = audio;
+      }
+      const audioEl = remoteAudioRef.current;
+      audioEl.srcObject = new MediaStream(audioTracks);
+      audioEl.muted = false;
+      void audioEl.play().catch((err) => {
+        console.warn("Remote audio play blocked; will retry on tap:", err);
+      });
+    }
+  }, []);
+
   const cleanupPeerConnection = useCallback(() => {
     pcRef.current?.close();
     pcRef.current = null;
     pendingCandidatesRef.current = [];
+    remoteStreamRef.current = null;
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
+    }
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.pause();
+      remoteAudioRef.current.srcObject = null;
     }
   }, []);
 
@@ -133,15 +170,16 @@ export function useWebRTC() {
       };
 
       pc.ontrack = (event) => {
-        const stream = event.streams[0] ?? new MediaStream([event.track]);
-        const video = remoteVideoRef.current;
-        if (video) {
-          video.srcObject = stream;
-          // Keep muted so mobile autoplay still shows frames
-          video.muted = true;
-          video.playsInline = true;
-          void video.play().catch(() => {});
+        let stream = event.streams[0] ?? remoteStreamRef.current;
+        if (!stream) {
+          stream = new MediaStream();
         }
+        if (event.track && !stream.getTracks().includes(event.track)) {
+          stream.addTrack(event.track);
+        }
+        remoteStreamRef.current = stream;
+        attachRemoteMedia(stream);
+
         setStatus("connected");
         if (!countedConnectionRef.current) {
           countedConnectionRef.current = true;
@@ -153,7 +191,7 @@ export function useWebRTC() {
 
       return pc;
     },
-    [cleanupPeerConnection],
+    [attachRemoteMedia, cleanupPeerConnection],
   );
 
   const bindSocketEvents = useCallback(
@@ -326,6 +364,12 @@ export function useWebRTC() {
   const startMatching = useCallback(() => {
     setConnectionError(null);
     setStatus("waiting");
+    // User gesture — unlock audio playback for when the partner connects
+    if (!remoteAudioRef.current) {
+      remoteAudioRef.current = new Audio();
+      remoteAudioRef.current.autoplay = true;
+    }
+    void remoteAudioRef.current.play().catch(() => {});
 
     if (!socketRef.current) {
       const socket = io(getSignalingUrl(), {
