@@ -28,6 +28,8 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
       className={`${syne.variable} ${sourceSans.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">{children}</body>

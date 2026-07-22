@@ -310,6 +310,23 @@ export function useWebRTC() {
 
     (async () => {
       try {
+        // mediaDevices only exists in a secure context (HTTPS or localhost).
+        // Opening via http://192.168.x.x will leave mediaDevices undefined.
+        if (
+          typeof navigator === "undefined" ||
+          !navigator.mediaDevices?.getUserMedia
+        ) {
+          const insecure =
+            typeof window !== "undefined" && !window.isSecureContext;
+          setConnectionError(
+            insecure
+              ? "Camera needs HTTPS or localhost. Open via http://localhost:3000 (not a LAN IP over HTTP)."
+              : "Camera API unavailable in this browser.",
+          );
+          setCameraReady(false);
+          return;
+        }
+
         let stream: MediaStream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({
@@ -317,7 +334,7 @@ export function useWebRTC() {
             video: getVideoConstraints(),
           });
         } catch {
-          // If the device rejects aspectRatio ideals, fall back to a plain camera
+          // Ideals rejected — fall back to a plain front camera
           stream = await navigator.mediaDevices.getUserMedia({
             audio: true,
             video: { facingMode: "user" },
@@ -333,12 +350,16 @@ export function useWebRTC() {
         setCameraReady(true);
         setMicOn(true);
         setCameraOn(true);
+        setConnectionError(null);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
       } catch (err) {
         console.error("Failed to access camera/microphone:", err);
         setCameraReady(false);
+        setConnectionError(
+          "Camera/microphone permission denied or unavailable.",
+        );
       }
     })();
 
@@ -374,12 +395,17 @@ export function useWebRTC() {
 
     if (!socketRef.current) {
       const socket = io(getSignalingUrl(), {
-        // Polling first is more reliable behind Render / Cloudflare
-        transports: ["polling", "websocket"],
-        withCredentials: true,
+        // Prefer websocket through tunnels; polling often hits ngrok's HTML interstitial
+        transports: ["websocket", "polling"],
+        // No cookies needed — credentials can break CORS through tunnels
+        withCredentials: false,
         reconnection: true,
         reconnectionAttempts: 8,
         timeout: 15000,
+        // Helps Node clients; browsers still need a one-time Visit on free ngrok
+        extraHeaders: {
+          "ngrok-skip-browser-warning": "true",
+        },
       });
       socketRef.current = socket;
       bindSocketEvents(socket);
@@ -391,7 +417,9 @@ export function useWebRTC() {
 
       socket.on("connect_error", (err) => {
         console.error("Signaling connect error:", err.message);
-        setConnectionError("Could not reach the matchmaking server. Retrying…");
+        setConnectionError(
+          "Could not reach matchmaking. If using free ngrok, open the backend URL once, click Visit Site, then retry Connect.",
+        );
       });
     } else if (socketRef.current.connected) {
       socketRef.current.emit("find-match");

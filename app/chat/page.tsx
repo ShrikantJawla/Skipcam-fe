@@ -210,8 +210,8 @@ export default function ChatPage() {
 
   return (
     <main className="session-shell relative flex h-dvh max-h-dvh flex-col overflow-hidden text-ink">
-      <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-3 lg:px-6">
-        <header className="mb-1.5 flex shrink-0 items-center justify-between gap-2 sm:mb-2.5 sm:gap-3">
+      <div className="mx-auto flex h-full w-full max-w-[1400px] flex-col px-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))] max-lg:px-0 max-lg:pt-0 max-lg:pb-0 sm:px-5 sm:py-3 lg:px-6">
+        <header className="mb-1.5 flex shrink-0 items-center justify-between gap-2 max-lg:absolute max-lg:inset-x-0 max-lg:top-0 max-lg:z-30 max-lg:mb-0 max-lg:bg-linear-to-b max-lg:from-black/55 max-lg:to-transparent max-lg:px-2.5 max-lg:pt-[max(0.5rem,env(safe-area-inset-top))] max-lg:pb-3 sm:mb-2.5 sm:gap-3">
           <Link
             href="/"
             className="group flex min-w-0 items-center gap-2 sm:gap-2.5"
@@ -220,7 +220,7 @@ export default function ChatPage() {
               Z
             </span>
             <span className="min-w-0">
-              <span className="block truncate font-display text-sm font-bold tracking-tight sm:text-base">
+              <span className="block truncate font-display text-sm font-bold tracking-tight text-ink max-lg:text-white sm:text-base">
                 {BRAND.name}
               </span>
               <span className="hidden truncate text-xs text-ink-soft sm:block">
@@ -239,7 +239,7 @@ export default function ChatPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-1.5 rounded-lg border border-line/80 bg-surface/90 px-2 py-1 text-[11px] font-medium text-ink-soft shadow-sm backdrop-blur sm:gap-2 sm:px-3 sm:py-1.5 sm:text-xs">
+            <div className="flex items-center gap-1.5 rounded-lg border border-line/80 bg-surface/90 px-2 py-1 text-[11px] font-medium text-ink-soft shadow-sm backdrop-blur max-lg:border-white/20 max-lg:bg-black/45 max-lg:text-white sm:gap-2 sm:px-3 sm:py-1.5 sm:text-xs">
               <StatusDot status={status} />
               <span className="hidden sm:inline">{STATUS_COPY[status]}</span>
               <span className="sm:hidden">
@@ -250,7 +250,7 @@ export default function ChatPage() {
                     : "Ready"}
               </span>
               {status === "connected" && (
-                <span className="tabular-nums text-ink">
+                <span className="tabular-nums text-ink max-lg:text-white">
                   {formatDuration(sessionSeconds)}
                 </span>
               )}
@@ -258,34 +258,28 @@ export default function ChatPage() {
 
             <Link
               href="/"
-              className="btn btn-secondary px-2.5! py-1.5! text-xs sm:px-3! sm:py-2! sm:text-sm"
+              className="btn btn-secondary px-2.5! py-1.5! text-xs max-lg:border-white/20 max-lg:bg-black/45 max-lg:text-white sm:px-3! sm:py-2! sm:text-sm"
             >
               Leave
             </Link>
           </div>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(150px,30%)] gap-1.5 sm:gap-2.5 lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-none xl:grid-cols-[minmax(0,1fr)_380px]">
-          <div className="flex min-h-0 flex-col gap-1.5 sm:gap-2">
-            <section className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-ink/10 bg-stage shadow-[0_20px_50px_-24px_rgba(15,23,42,0.55)] sm:rounded-2xl">
+        <div className="flex min-h-0 flex-1 flex-col max-lg:h-full lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-none lg:gap-2.5 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="flex min-h-0 flex-col gap-1.5 max-lg:contents sm:gap-2">
+            <section className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-ink/10 bg-stage shadow-[0_20px_50px_-24px_rgba(15,23,42,0.55)] max-lg:h-dvh max-lg:max-h-dvh max-lg:min-h-0 max-lg:flex-none max-lg:rounded-none max-lg:border-0 max-lg:shadow-none sm:rounded-2xl lg:h-auto lg:min-h-0">
               <div
-                className={`absolute inset-0 flex items-center justify-center overflow-hidden rounded-xl bg-black [container-type:size] sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
+                className={`absolute inset-0 flex items-center justify-center overflow-hidden bg-black [container-type:size] max-lg:rounded-none sm:rounded-2xl ${status === "connected" ? "stage-vignette" : ""}`}
               >
-                {/* 16:9 = 960×540 — scales to fit stage on mobile & desktop */}
                 <VideoBox
                   videoRef={remoteVideoRef}
                   label="Stranger"
-                  fit="contain"
+                  fit="cover"
                   placeholder={status !== "connected"}
                   placeholderContent={
                     <div className="h-full w-full bg-black" />
                   }
-                  className="rounded-none border-0 bg-black"
-                  style={{
-                    aspectRatio: "4 / 3",
-                    // width: "min(100cqw, 960px, calc(100cqh * 16 / 9))",
-                    // height: "auto",
-                  }}
+                  className="h-full w-full rounded-none border-0 bg-black"
                   labelClassName="rounded-md bg-black/50 px-2 py-1 text-[11px] backdrop-blur-sm"
                 />
               </div>
@@ -322,7 +316,12 @@ export default function ChatPage() {
                 </div>
               )}
 
-              <DraggablePip padding={10}>
+              <DraggablePip
+                padding={10}
+                // Keep self-view above the mobile chat input / messages
+                anchor={chatEnabled ? "top-right" : "bottom-right"}
+                bottomReserve={chatEnabled ? 100 : 12}
+              >
                 {/* WhatsApp-style self view: small portrait PIP */}
                 <div className="relative overflow-hidden rounded-2xl ring-2 ring-white/30 shadow-[0_12px_30px_rgba(0,0,0,0.45)] transition hover:ring-white/50">
                   <VideoBox
@@ -364,24 +363,62 @@ export default function ChatPage() {
                   {toast}
                 </div>
               )}
+
+              {/* Mobile: input at bottom of video; rises with keyboard; latest msgs above */}
+              {chatEnabled && (
+                <div className="lg:hidden">
+                  <ChatPanel
+                    variant="overlay"
+                    messages={messages}
+                    enabled={chatEnabled}
+                    onSend={sendMessage}
+                  />
+                </div>
+              )}
+
+              {/* Mobile controls — left under header while live so chat/PIP stay clear */}
+              <div
+                className={`absolute z-30 flex flex-col gap-2 lg:hidden ${
+                  chatEnabled
+                    ? "top-[4.75rem] left-3 items-start"
+                    : "right-3 bottom-6 items-end"
+                }`}
+              >
+                {status === "connected" && (
+                  <ControlButton
+                    label="Report user"
+                    danger
+                    onClick={handleReport}
+                  >
+                    <FlagIcon />
+                  </ControlButton>
+                )}
+                {status === "idle" && (
+                  <button
+                    type="button"
+                    onClick={startMatching}
+                    disabled={!cameraReady || showOnboarding}
+                    className="btn btn-primary px-4! py-2! text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Connect
+                  </button>
+                )}
+                {(status === "waiting" ||
+                  status === "connecting" ||
+                  status === "connected") && (
+                  <button
+                    type="button"
+                    onClick={nextPartner}
+                    className="btn btn-primary px-4! py-2! text-sm shadow-lg"
+                  >
+                    Next
+                  </button>
+                )}
+              </div>
             </section>
 
-            <div className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-line/80 bg-surface px-2 py-2 shadow-sm sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-2.5">
+            <div className="hidden shrink-0 items-center justify-between gap-2 rounded-xl border border-line/80 bg-surface px-2 py-2 shadow-sm sm:flex sm:gap-3 sm:rounded-2xl sm:px-4 sm:py-2.5">
               <div className="flex items-center gap-1 sm:gap-1.5">
-                {/* <ControlButton
-                  label={micOn ? "Mute microphone" : "Unmute microphone"}
-                  active={!micOn}
-                  onClick={toggleMic}
-                >
-                  {micOn ? <MicIcon /> : <MicOffIcon />}
-                </ControlButton>
-                <ControlButton
-                  label={cameraOn ? "Turn camera off" : "Turn camera on"}
-                  active={!cameraOn}
-                  onClick={toggleCamera}
-                >
-                  {cameraOn ? <CamIcon /> : <CamOffIcon />}
-                </ControlButton> */}
                 {status === "connected" && (
                   <ControlButton
                     label="Report user"
@@ -424,7 +461,7 @@ export default function ChatPage() {
             </p>
           </div>
 
-          <div className="min-h-0 overflow-hidden">
+          <div className="hidden min-h-0 overflow-hidden lg:block">
             <ChatPanel
               messages={messages}
               enabled={chatEnabled}

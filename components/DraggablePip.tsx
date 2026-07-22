@@ -11,23 +11,33 @@ import {
 
 type Position = { x: number; y: number };
 
+function samePos(a: Position | null, b: Position | null) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.x === b.x && a.y === b.y;
+}
+
 interface DraggablePipProps {
   children: ReactNode;
   className?: string;
   /** Padding from stage edges in px */
   padding?: number;
+  /** Extra space reserved at the bottom (e.g. chat input) */
+  bottomReserve?: number;
+  /** Initial corner before the user drags */
+  anchor?: "bottom-right" | "top-right";
 }
 
 export default function DraggablePip({
   children,
   className = "",
   padding = 12,
+  bottomReserve = 0,
+  anchor = "bottom-right",
 }: DraggablePipProps) {
   const pipRef = useRef<HTMLDivElement>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
   const dragging = useRef(false);
-
-  // null = use default bottom-right via CSS until first drag/layout
   const [pos, setPos] = useState<Position | null>(null);
 
   const clampToParent = useCallback(
@@ -37,55 +47,56 @@ export default function DraggablePip({
       if (!el || !parent) return { x, y };
 
       const maxX = parent.clientWidth - el.offsetWidth - padding;
-      const maxY = parent.clientHeight - el.offsetHeight - padding;
+      const maxY =
+        parent.clientHeight - el.offsetHeight - padding - bottomReserve;
 
       return {
         x: Math.min(Math.max(padding, x), Math.max(padding, maxX)),
         y: Math.min(Math.max(padding, y), Math.max(padding, maxY)),
       };
     },
-    [padding],
+    [padding, bottomReserve],
   );
 
-  // Place in bottom-right once sizes are known
+  // Single observer — only updates state when x/y actually change (no render loop)
   useEffect(() => {
-    const el = pipRef.current;
-    const parent = el?.parentElement;
-    if (!el || !parent || pos !== null) return;
-
-    const place = () => {
-      setPos(
-        clampToParent(
-          parent.clientWidth - el.offsetWidth - padding,
-          parent.clientHeight - el.offsetHeight - padding,
-        ),
-      );
-    };
-
-    place();
-
-    const observer = new ResizeObserver(place);
-    observer.observe(parent);
-    return () => observer.disconnect();
-  }, [clampToParent, padding, pos]);
-
-  // Keep inside bounds if the stage resizes after dragging
-  useEffect(() => {
-    if (pos === null) return;
     const el = pipRef.current;
     const parent = el?.parentElement;
     if (!el || !parent) return;
 
-    const onResize = () => {
-      setPos((current) =>
-        current ? clampToParent(current.x, current.y) : current,
-      );
+    let needsDock = true;
+
+    const sync = () => {
+      setPos((current) => {
+        if (dragging.current && current) {
+          const next = clampToParent(current.x, current.y);
+          return samePos(current, next) ? current : next;
+        }
+
+        if (needsDock || current === null) {
+          needsDock = false;
+          const x = parent.clientWidth - el.offsetWidth - padding;
+          const y =
+            anchor === "top-right"
+              ? padding
+              : parent.clientHeight -
+                el.offsetHeight -
+                padding -
+                bottomReserve;
+          const next = clampToParent(x, y);
+          return samePos(current, next) ? current : next;
+        }
+
+        const next = clampToParent(current.x, current.y);
+        return samePos(current, next) ? current : next;
+      });
     };
 
-    const observer = new ResizeObserver(onResize);
+    sync();
+    const observer = new ResizeObserver(sync);
     observer.observe(parent);
     return () => observer.disconnect();
-  }, [clampToParent, pos]);
+  }, [anchor, bottomReserve, clampToParent, padding]);
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -111,7 +122,7 @@ export default function DraggablePip({
       event.clientX - parentRect.left - dragOffset.current.x,
       event.clientY - parentRect.top - dragOffset.current.y,
     );
-    setPos(next);
+    setPos((current) => (samePos(current, next) ? current : next));
   };
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -120,6 +131,11 @@ export default function DraggablePip({
     pipRef.current?.releasePointerCapture(event.pointerId);
   };
 
+  const fallbackCorner =
+    anchor === "top-right"
+      ? "right-3 top-14 sm:right-4 sm:top-4"
+      : "right-3 bottom-3 sm:right-4 sm:bottom-4";
+
   return (
     <div
       ref={pipRef}
@@ -127,7 +143,7 @@ export default function DraggablePip({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      className={`absolute z-20 touch-none select-none ${pos === null ? "right-3 bottom-3 sm:right-4 sm:bottom-4" : ""} cursor-grab active:cursor-grabbing ${className}`}
+      className={`absolute z-30 touch-none select-none ${pos === null ? fallbackCorner : ""} cursor-grab active:cursor-grabbing ${className}`}
       style={
         pos
           ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
